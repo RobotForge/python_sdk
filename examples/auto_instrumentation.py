@@ -14,7 +14,7 @@ async def demo_zero_code_tracing():
     
     # Setup telemetry client
     client = quick_setup(
-        api_key="demo-key",
+        api_key="change-me",
         endpoint="https://localhost:8443",
         project_id="auto-instrumentation-demo"
     )

@@ -225,7 +225,7 @@ class TelemetryClient:
     @asynccontextmanager
     async def trace_model_call(self, **kwargs) -> AsyncGenerator[EventBuilder, None]:
         """Context manager for tracing model calls"""
-        async with TraceContext(self, EventType.MODEL_CALL, kwargs.get('source_component', 'model_call'), **kwargs) as builder:
+        async with TraceContext(self, EventType.MODEL_CALL, kwargs.pop('source_component', 'model_call'), **kwargs) as builder:
             yield builder
 
     @asynccontextmanager
@@ -297,20 +297,22 @@ class TelemetryClient:
         batch.add_events(events, details_list)
         return await batch.send()
 
-    # Decorator Methods
     def trace_model_call_decorator(self, provider: str = None, model: str = None, **kwargs):
-        """Decorator for automatically tracing model calls"""
-        def decorator(func: Callable):
+        """Fixed decorator for automatically tracing model calls"""
+        print(kwargs)
+        def decorator(func):
             if asyncio.iscoroutinefunction(func):
                 @wraps(func)
                 async def async_wrapper(*args, **func_kwargs):
-                    source_component = kwargs.get('source_component', func.__name__)
+                    # Extract source_component from kwargs to avoid duplication
+                    
+                    source_component = kwargs.pop('source_component', func.__name__)
                     
                     async with self.trace_model_call(
                         provider=provider,
                         model=model,
                         source_component=source_component,
-                        **kwargs
+                        **kwargs  # Now kwargs doesn't contain source_component
                     ) as span:
                         try:
                             result = await func(*args, **func_kwargs)
@@ -337,13 +339,14 @@ class TelemetryClient:
             else:
                 @wraps(func)
                 def sync_wrapper(*args, **func_kwargs):
-                    source_component = kwargs.get('source_component', func.__name__)
+                    # Extract source_component from kwargs to avoid duplication
+                    source_component = kwargs.pop('source_component', func.__name__)
                     
                     with self.trace_model_call_sync(
                         provider=provider,
                         model=model,
                         source_component=source_component,
-                        **kwargs
+                        **kwargs  # Now kwargs doesn't contain source_component
                     ) as span:
                         try:
                             result = func(*args, **func_kwargs)
@@ -364,17 +367,18 @@ class TelemetryClient:
         return decorator
 
     def trace_tool_execution_decorator(self, tool_name: str, **kwargs):
-        """Decorator for automatically tracing tool executions"""
-        def decorator(func: Callable):
+        """Fixed decorator for automatically tracing tool executions"""
+        def decorator(func):
             if asyncio.iscoroutinefunction(func):
                 @wraps(func)
                 async def async_wrapper(*args, **func_kwargs):
-                    source_component = kwargs.get('source_component', tool_name)
+                    # Extract source_component from kwargs to avoid duplication
+                    source_component = kwargs.pop('source_component', tool_name)
                     
                     async with self.trace_tool_execution(
                         tool_name=tool_name,
                         source_component=source_component,
-                        **kwargs
+                        **kwargs  # Now kwargs doesn't contain source_component
                     ) as span:
                         try:
                             result = await func(*args, **func_kwargs)
@@ -396,12 +400,13 @@ class TelemetryClient:
             else:
                 @wraps(func)
                 def sync_wrapper(*args, **func_kwargs):
-                    source_component = kwargs.get('source_component', tool_name)
+                    # Extract source_component from kwargs to avoid duplication
+                    source_component = kwargs.pop('source_component', tool_name)
                     
                     with self.trace_tool_execution_sync(
                         tool_name=tool_name,
                         source_component=source_component,
-                        **kwargs
+                        **kwargs  # Now kwargs doesn't contain source_component
                     ) as span:
                         try:
                             result = func(*args, **func_kwargs)
@@ -421,17 +426,18 @@ class TelemetryClient:
         return decorator
 
     def trace_agent_action_decorator(self, action_type: str, **kwargs):
-        """Decorator for automatically tracing agent actions"""
-        def decorator(func: Callable):
+        """Fixed decorator for automatically tracing agent actions"""
+        def decorator(func):
             if asyncio.iscoroutinefunction(func):
                 @wraps(func)
                 async def async_wrapper(*args, **func_kwargs):
-                    source_component = kwargs.get('source_component', 'agent')
+                    # Extract source_component from kwargs to avoid duplication
+                    source_component = kwargs.pop('source_component', 'agent')
                     
                     async with self.trace_agent_action(
                         action_type=action_type,
                         source_component=source_component,
-                        **kwargs
+                        **kwargs  # Now kwargs doesn't contain source_component
                     ) as span:
                         try:
                             result = await func(*args, **func_kwargs)
@@ -451,12 +457,13 @@ class TelemetryClient:
             else:
                 @wraps(func)
                 def sync_wrapper(*args, **func_kwargs):
-                    source_component = kwargs.get('source_component', 'agent')
+                    # Extract source_component from kwargs to avoid duplication
+                    source_component = kwargs.pop('source_component', 'agent')
                     
                     with self.trace_agent_action_sync(
                         action_type=action_type,
                         source_component=source_component,
-                        **kwargs
+                        **kwargs  # Now kwargs doesn't contain source_component
                     ) as span:
                         try:
                             result = func(*args, **func_kwargs)
@@ -474,6 +481,184 @@ class TelemetryClient:
                 
                 return sync_wrapper
         return decorator
+
+    # # Decorator Methods
+    # def trace_model_call_decorator(self, provider: str = None, model: str = None, **kwargs):
+    #     """Decorator for automatically tracing model calls"""
+    #     def decorator(func: Callable):
+    #         if asyncio.iscoroutinefunction(func):
+    #             @wraps(func)
+    #             async def async_wrapper(*args, **func_kwargs):
+    #                 source_component = kwargs.get('source_component', func.__name__)
+                    
+    #                 async with self.trace_model_call(
+    #                     provider=provider,
+    #                     model=model,
+    #                     source_component=source_component,
+    #                     **kwargs
+    #                 ) as span:
+    #                     try:
+    #                         result = await func(*args, **func_kwargs)
+                            
+    #                         # Try to extract common response patterns
+    #                         if hasattr(result, 'usage'):
+    #                             if hasattr(result.usage, 'total_tokens'):
+    #                                 span.set_tokens(result.usage.total_tokens)
+                            
+    #                         if hasattr(result, 'choices') and result.choices:
+    #                             if hasattr(result.choices[0], 'message'):
+    #                                 span.set_output(str(result.choices[0].message.content)[:1000])
+    #                             elif hasattr(result.choices[0], 'text'):
+    #                                 span.set_output(str(result.choices[0].text)[:1000])
+                            
+    #                         return result
+                            
+    #                     except Exception as e:
+    #                         span.set_status(EventStatus.ERROR)
+    #                         span.set_error(e)
+    #                         raise
+                
+    #             return async_wrapper
+    #         else:
+    #             @wraps(func)
+    #             def sync_wrapper(*args, **func_kwargs):
+    #                 source_component = kwargs.get('source_component', func.__name__)
+                    
+    #                 with self.trace_model_call_sync(
+    #                     provider=provider,
+    #                     model=model,
+    #                     source_component=source_component,
+    #                     **kwargs
+    #                 ) as span:
+    #                     try:
+    #                         result = func(*args, **func_kwargs)
+                            
+    #                         # Try to extract common response patterns
+    #                         if hasattr(result, 'usage'):
+    #                             if hasattr(result.usage, 'total_tokens'):
+    #                                 span.set_tokens(result.usage.total_tokens)
+                            
+    #                         return result
+                            
+    #                     except Exception as e:
+    #                         span.set_status(EventStatus.ERROR)
+    #                         span.set_error(e)
+    #                         raise
+                
+    #             return sync_wrapper
+    #     return decorator
+
+    # def trace_tool_execution_decorator(self, tool_name: str, **kwargs):
+    #     """Decorator for automatically tracing tool executions"""
+    #     def decorator(func: Callable):
+    #         if asyncio.iscoroutinefunction(func):
+    #             @wraps(func)
+    #             async def async_wrapper(*args, **func_kwargs):
+    #                 source_component = kwargs.get('source_component', tool_name)
+                    
+    #                 async with self.trace_tool_execution(
+    #                     tool_name=tool_name,
+    #                     source_component=source_component,
+    #                     **kwargs
+    #                 ) as span:
+    #                     try:
+    #                         result = await func(*args, **func_kwargs)
+                            
+    #                         # Set output if result is serializable
+    #                         if isinstance(result, (str, int, float, bool)):
+    #                             span.set_output(str(result)[:1000])
+    #                         elif hasattr(result, '__dict__'):
+    #                             span.set_output(str(result)[:1000])
+                            
+    #                         return result
+                            
+    #                     except Exception as e:
+    #                         span.set_status(EventStatus.ERROR)
+    #                         span.set_error(e)
+    #                         raise
+                
+    #             return async_wrapper
+    #         else:
+    #             @wraps(func)
+    #             def sync_wrapper(*args, **func_kwargs):
+    #                 source_component = kwargs.get('source_component', tool_name)
+                    
+    #                 with self.trace_tool_execution_sync(
+    #                     tool_name=tool_name,
+    #                     source_component=source_component,
+    #                     **kwargs
+    #                 ) as span:
+    #                     try:
+    #                         result = func(*args, **func_kwargs)
+                            
+    #                         # Set output if result is serializable
+    #                         if isinstance(result, (str, int, float, bool)):
+    #                             span.set_output(str(result)[:1000])
+                            
+    #                         return result
+                            
+    #                     except Exception as e:
+    #                         span.set_status(EventStatus.ERROR)
+    #                         span.set_error(e)
+    #                         raise
+                
+    #             return sync_wrapper
+    #     return decorator
+
+    # def trace_agent_action_decorator(self, action_type: str, **kwargs):
+    #     """Decorator for automatically tracing agent actions"""
+    #     def decorator(func: Callable):
+    #         if asyncio.iscoroutinefunction(func):
+    #             @wraps(func)
+    #             async def async_wrapper(*args, **func_kwargs):
+    #                 source_component = kwargs.get('source_component', 'agent')
+                    
+    #                 async with self.trace_agent_action(
+    #                     action_type=action_type,
+    #                     source_component=source_component,
+    #                     **kwargs
+    #                 ) as span:
+    #                     try:
+    #                         result = await func(*args, **func_kwargs)
+                            
+    #                         # Set output if result is serializable
+    #                         if isinstance(result, (str, int, float, bool)):
+    #                             span.set_output(str(result)[:1000])
+                            
+    #                         return result
+                            
+    #                     except Exception as e:
+    #                         span.set_status(EventStatus.ERROR)
+    #                         span.set_error(e)
+    #                         raise
+                
+    #             return async_wrapper
+    #         else:
+    #             @wraps(func)
+    #             def sync_wrapper(*args, **func_kwargs):
+    #                 source_component = kwargs.get('source_component', 'agent')
+                    
+    #                 with self.trace_agent_action_sync(
+    #                     action_type=action_type,
+    #                     source_component=source_component,
+    #                     **kwargs
+    #                 ) as span:
+    #                     try:
+    #                         result = func(*args, **func_kwargs)
+                            
+    #                         # Set output if result is serializable
+    #                         if isinstance(result, (str, int, float, bool)):
+    #                             span.set_output(str(result)[:1000])
+                            
+    #                         return result
+                            
+    #                     except Exception as e:
+    #                         span.set_status(EventStatus.ERROR)
+    #                         span.set_error(e)
+    #                         raise
+                
+    #             return sync_wrapper
+    #     return decorator
 
     # Utility Methods
     async def health_check(self) -> bool:

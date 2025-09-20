@@ -15,7 +15,7 @@ async def example_basic_setup():
     
     # Option 1: Manual setup
     client = TelemetryClient(
-        api_key="your-api-key",
+        api_key="change-me",
         endpoint="https://localhost:8443",
         project_id="example-project",
         tenant_id="demo-tenant",
@@ -25,7 +25,7 @@ async def example_basic_setup():
     
     # Option 2: Quick setup (recommended)
     client = quick_setup(
-        api_key="your-api-key",
+        api_key="change-me",
         endpoint="https://localhost:8443",
         project_id="example-project"
     )
@@ -42,7 +42,7 @@ async def example_context_managers():
     print("-" * 40)
     
     client = quick_setup(
-        api_key="demo-key",
+        api_key="change-me",
         endpoint="https://localhost:8443", 
         project_id="context-example"
     )
@@ -108,7 +108,7 @@ async def example_decorators():
     print("-" * 40)
     
     client = quick_setup(
-        api_key="demo-key",
+        api_key="change-me",
         endpoint="https://localhost:8443",
         project_id="decorator-example"
     )
@@ -152,7 +152,7 @@ async def example_manual_events():
     print("-" * 40)
     
     client = quick_setup(
-        api_key="demo-key",
+        api_key="change-me",
         endpoint="https://localhost:8443",
         project_id="manual-example"
     )
@@ -200,7 +200,7 @@ async def example_batch_processing():
     print("-" * 40)
     
     client = quick_setup(
-        api_key="demo-key",
+        api_key="change-me",
         endpoint="https://localhost:8443",
         project_id="batch-example"
     )
@@ -238,7 +238,7 @@ def example_sync_context():
     print("-" * 40)
     
     client = quick_setup(
-        api_key="demo-key",
+        api_key="change-me",
         endpoint="https://localhost:8443",
         project_id="sync-example"
     )
@@ -279,7 +279,7 @@ async def example_error_handling():
     print("-" * 40)
     
     client = quick_setup(
-        api_key="demo-key",
+        api_key="change-me",
         endpoint="https://localhost:8443",
         project_id="error-example"
     )
