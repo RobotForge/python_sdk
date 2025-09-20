@@ -1,0 +1,265 @@
+[build-system]
+requires = ["setuptools>=64", "wheel", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "telemetry-sdk"
+dynamic = ["version"]
+description = "Multi-layered Python SDK for AI/ML telemetry"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Your Organization", email = "support@yourorg.com"},
+]
+maintainers = [
+    {name = "Your Organization", email = "support@yourorg.com"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Monitoring",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "aiohttp>=3.8.0",
+    "pydantic>=1.10.0,<3.0.0",
+    "typing-extensions>=4.0.0",
+]
+keywords = [
+    "telemetry", 
+    "monitoring", 
+    "ai", 
+    "ml", 
+    "llm", 
+    "observability", 
+    "tracing", 
+    "logging",
+    "openai",
+    "anthropic",
+    "langchain",
+    "instrumentation"
+]
+
+[project.optional-dependencies]
+# Auto-instrumentation for popular AI/ML libraries
+auto = [
+    "openai>=1.0.0",
+    "anthropic>=0.25.0",
+    "langchain>=0.1.0",
+    "llama-index>=0.9.0",
+    "requests>=2.28.0",
+    "httpx>=0.24.0",
+]
+
+# Web framework integrations
+web = [
+    "fastapi>=0.100.0",
+    "flask>=2.0.0",
+    "django>=4.0.0",
+]
+
+# Additional ML/AI libraries
+ml = [
+    "transformers>=4.20.0",
+    "torch>=1.12.0",
+    "tensorflow>=2.10.0",
+    "scikit-learn>=1.1.0",
+    "numpy>=1.21.0",
+    "pandas>=1.4.0",
+]
+
+# Configuration file support
+config = [
+    "PyYAML>=6.0",
+    "toml>=0.10.0",
+]
+
+# Development dependencies
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+    "black>=22.0.0",
+    "isort>=5.10.0",
+    "flake8>=5.0.0",
+    "mypy>=1.0.0",
+    "pre-commit>=2.20.0",
+    "twine>=4.0.0",
+    "build>=0.10.0",
+]
+
+# Documentation
+docs = [
+    "sphinx>=5.0.0",
+    "sphinx-rtd-theme>=1.2.0",
+    "sphinxcontrib-asyncio>=0.3.0",
+    "myst-parser>=0.18.0",
+]
+
+# All optional dependencies (most common combinations)
+all = [
+    "telemetry-sdk[auto,web,config]",
+]
+
+# Everything including development tools
+full = [
+    "telemetry-sdk[auto,web,ml,config,dev,docs]",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourorg/telemetry-sdk"
+Documentation = "https://telemetry-sdk.readthedocs.io/"
+Repository = "https://github.com/yourorg/telemetry-sdk.git"
+"Bug Tracker" = "https://github.com/yourorg/telemetry-sdk/issues"
+Changelog = "https://github.com/yourorg/telemetry-sdk/blob/main/CHANGELOG.md"
+"Funding" = "https://github.com/sponsors/yourorg"
+
+[project.scripts]
+telemetry-cli = "telemetry_sdk.cli:main"
+
+[tool.setuptools]
+packages = ["telemetry_sdk"]
+zip-safe = false
+
+[tool.setuptools.dynamic]
+version = {attr = "telemetry_sdk.__version__"}
+
+[tool.setuptools.package-data]
+telemetry_sdk = ["py.typed", "*.yaml", "*.json"]
+
+# Black configuration
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+# isort configuration
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["telemetry_sdk"]
+known_third_party = ["aiohttp", "pydantic", "openai", "anthropic", "langchain"]
+
+# mypy configuration
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+show_error_codes = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "examples.*"
+ignore_errors = true
+
+# pytest configuration
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = [
+    "-v",
+    "--tb=short", 
+    "--strict-markers",
+    "--strict-config",
+    "--asyncio-mode=auto"
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests", 
+    "unit: marks tests as unit tests",
+    "instrumentation: marks tests that test auto-instrumentation",
+    "network: marks tests that require network access",
+]
+asyncio_mode = "auto"
+filterwarnings = [
+    "error",
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["telemetry_sdk"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "setup.py",
+    "*/examples/*",
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError", 
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@overload",
+]
+show_missing = true
+precision = 2
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+# Flake8 configuration (in setup.cfg since flake8 doesn't support pyproject.toml)
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203", "W503", "E501"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "*.egg-info",
+    ".venv",
+    ".tox",
+]
+per-file-ignores = [
+    "__init__.py:F401",  # Allow unused imports in __init__.py files
+    "tests/*:S101",      # Allow assert statements in tests
+]
+
+# Bandit security linting
+[tool.bandit]
+exclude_dirs = ["tests", "examples"]
+skips = ["B101"]  # Skip assert_used test
