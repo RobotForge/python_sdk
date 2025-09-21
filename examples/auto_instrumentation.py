@@ -81,7 +81,7 @@ def demo_selective_instrumentation():
     print("=" * 40)
     
     client = quick_setup(
-        api_key="demo-key",
+        api_key="change-me",
         endpoint="https://localhost:8443",
         project_id="selective-instrumentation"
     )
@@ -113,7 +113,7 @@ async def demo_instrumentation_with_custom_logic():
     print("=" * 40)
     
     client = quick_setup(
-        api_key="demo-key",
+        api_key="change-me",
         endpoint="https://localhost:8443",
         project_id="mixed-instrumentation"
     )
@@ -169,7 +169,7 @@ def demo_configuration_options():
     print("=" * 40)
     
     client = quick_setup(
-        api_key="demo-key",
+        api_key="change-me",
         endpoint="https://localhost:8443",
         project_id="configuration-demo"
     )
