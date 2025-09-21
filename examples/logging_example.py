@@ -307,7 +307,7 @@ class TelemetryAwareApplication:
     
     async def _analyze_intent(self, user_input: str, request_id: str) -> str:
         """Simulate intent analysis"""
-        await asyncio.sleep(0.1)  # Simulate processing time
+        #await asyncio.sleep(0.1)  # Simulate processing time
         
         # Simple intent classification
         if "weather" in user_input.lower():
@@ -321,7 +321,7 @@ class TelemetryAwareApplication:
     
     async def _execute_action(self, intent: str, user_input: str, request_id: str) -> dict:
         """Execute the appropriate action based on intent"""
-        await asyncio.sleep(0.2)  # Simulate action execution
+        #await asyncio.sleep(0.2)  # Simulate action execution
         
         if intent == "weather_query":
             return {
@@ -350,7 +350,7 @@ class TelemetryAwareApplication:
     
     async def _generate_response(self, action_result: dict, user_input: str, request_id: str) -> str:
         """Generate natural language response"""
-        await asyncio.sleep(0.3)  # Simulate LLM call
+        #await asyncio.sleep(0.3)  # Simulate LLM call
         
         if action_result["type"] == "weather":
             return f"The weather in {action_result['location']} is {action_result['conditions']} with a temperature of {action_result['temperature']}."
@@ -364,7 +364,7 @@ class TelemetryAwareApplication:
     
     async def _post_process(self, response: str, request_id: str) -> str:
         """Post-process the response"""
-        await asyncio.sleep(0.05)  # Simulate post-processing
+        #await asyncio.sleep(0.05)  # Simulate post-processing
         
         # Add some formatting and validation
         formatted_response = response.strip()
@@ -401,7 +401,7 @@ def demo_application_logging():
                 print(f"❌ Error: {e}")
             
             # Small delay between requests
-            await asyncio.sleep(0.1)
+            #await asyncio.sleep(0.1)
         
         print("\n✅ Application demo completed")
         print("   📊 All operations logged with structured telemetry")

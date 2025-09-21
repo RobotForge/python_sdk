@@ -92,41 +92,58 @@ class TelemetryClient:
         self._background_task = threading.Thread(target=background_processor, daemon=True)
         self._background_task.start()
 
+
     async def _process_background_events(self):
-        """Background loop for processing sync events and auto-batching"""
+        """Simplified background loop that works with the new lock-free AutoBatchManager"""
         while not self._shutdown:
             try:
-                # Process sync events from queue
-                while not self._sync_event_queue.empty():
+                # Process sync events from threading queue
+                events_processed = 0
+                
+                # Move events from threading queue to async processing
+                while not self._sync_event_queue.empty() and events_processed < 50:
                     try:
                         event_data = self._sync_event_queue.get_nowait()
                         event = event_data['event']
                         details = event_data['details']
                         
+                        # The new AutoBatchManager handles all the complex logic
                         if self._auto_batch_manager:
                             await self._auto_batch_manager.add_event(event, details)
-                    except:
+                        
+                        events_processed += 1
+                        
+                    except Exception as e:
+                        # Log but don't break on individual event errors
+                        self._logger.debug(f"Error processing sync event: {e}")
                         continue
                 
-                # Flush auto-batch if timeout reached
+                # Periodic flush check - AutoBatchManager handles the timing logic
                 if self._auto_batch_manager:
                     await self._auto_batch_manager.flush()
                 
-                await asyncio.sleep(0.1)
-                
+                # Adaptive sleep based on activity
+                if events_processed > 0:
+                    await asyncio.sleep(0.01)  # 10ms when busy
+                else:
+                    await asyncio.sleep(0.1)   # 100ms when idle
+                    
             except Exception as e:
                 self._logger.error(f"Background processing error: {e}")
-                await asyncio.sleep(1)
+                await asyncio.sleep(1.0)  # Longer sleep on error to prevent error loops
+
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create HTTP session with proper configuration"""
         if self._session is None or self._session.closed:
             timeout = aiohttp.ClientTimeout(total=self.config.request_timeout)
             connector = aiohttp.TCPConnector(
+                verify_ssl=False,
                 limit=100,  # Connection pool limit
                 limit_per_host=30,
                 ttl_dns_cache=300,
                 use_dns_cache=True
+                
             )
             
             self._session = aiohttp.ClientSession(
@@ -232,7 +249,7 @@ class TelemetryClient:
     async def trace_tool_execution(self, tool_name: str, **kwargs) -> AsyncGenerator[EventBuilder, None]:
         """Context manager for tracing tool executions"""
         kwargs['tool_name'] = tool_name
-        source_component = kwargs.get('source_component', tool_name)
+        source_component = kwargs.pop('source_component', tool_name)
         async with TraceContext(self, EventType.TOOL_EXECUTION, source_component, **kwargs) as builder:
             yield builder
 
@@ -240,14 +257,14 @@ class TelemetryClient:
     async def trace_agent_action(self, action_type: str, **kwargs) -> AsyncGenerator[EventBuilder, None]:
         """Context manager for tracing agent actions"""
         kwargs['action_type'] = action_type
-        source_component = kwargs.get('source_component', 'agent')
+        source_component = kwargs.pop('source_component', 'agent')
         async with TraceContext(self, EventType.AGENT_ACTION, source_component, **kwargs) as builder:
             yield builder
 
     @asynccontextmanager
     async def trace_mcp_event(self, **kwargs) -> AsyncGenerator[EventBuilder, None]:
         """Context manager for tracing MCP events"""
-        source_component = kwargs.get('source_component', 'mcp')
+        source_component = kwargs.pop('source_component', 'mcp')
         async with TraceContext(self, EventType.MCP_EVENT, source_component, **kwargs) as builder:
             yield builder
 
@@ -267,6 +284,7 @@ class TelemetryClient:
         """Synchronous context manager for tracing agent actions"""
         kwargs['action_type'] = action_type
         source_component = kwargs.get('source_component', 'agent')
+        print(source_component)
         return SyncTraceContext(self, EventType.AGENT_ACTION, source_component, **kwargs)
 
     # Event Builder Factory Methods
@@ -299,19 +317,21 @@ class TelemetryClient:
 
     def trace_model_call_decorator(self, provider: str = None, model: str = None, **kwargs):
         """Fixed decorator for automatically tracing model calls"""
-        print(kwargs)
+        #print(kwargs)
         def decorator(func):
             if asyncio.iscoroutinefunction(func):
                 @wraps(func)
                 async def async_wrapper(*args, **func_kwargs):
                     # Extract source_component from kwargs to avoid duplication
                     
-                    source_component = kwargs.pop('source_component', func.__name__)
+                    #source_component = kwargs.get('source_component', func.__name__)
+
+                    print(args, func_kwargs, kwargs)
                     
                     async with self.trace_model_call(
                         provider=provider,
                         model=model,
-                        source_component=source_component,
+                        #source_component=source_component,
                         **kwargs  # Now kwargs doesn't contain source_component
                     ) as span:
                         try:
@@ -340,12 +360,12 @@ class TelemetryClient:
                 @wraps(func)
                 def sync_wrapper(*args, **func_kwargs):
                     # Extract source_component from kwargs to avoid duplication
-                    source_component = kwargs.pop('source_component', func.__name__)
+                    #source_component = kwargs.pop('source_component', func.__name__)
                     
                     with self.trace_model_call_sync(
                         provider=provider,
                         model=model,
-                        source_component=source_component,
+                        #source_component=source_component,
                         **kwargs  # Now kwargs doesn't contain source_component
                     ) as span:
                         try:
@@ -373,11 +393,11 @@ class TelemetryClient:
                 @wraps(func)
                 async def async_wrapper(*args, **func_kwargs):
                     # Extract source_component from kwargs to avoid duplication
-                    source_component = kwargs.pop('source_component', tool_name)
+                    #source_component = kwargs.pop('source_component', tool_name)
                     
                     async with self.trace_tool_execution(
                         tool_name=tool_name,
-                        source_component=source_component,
+                        #source_component=source_component,
                         **kwargs  # Now kwargs doesn't contain source_component
                     ) as span:
                         try:
@@ -401,11 +421,11 @@ class TelemetryClient:
                 @wraps(func)
                 def sync_wrapper(*args, **func_kwargs):
                     # Extract source_component from kwargs to avoid duplication
-                    source_component = kwargs.pop('source_component', tool_name)
+                    #source_component = kwargs.pop('source_component', tool_name)
                     
                     with self.trace_tool_execution_sync(
                         tool_name=tool_name,
-                        source_component=source_component,
+                        #source_component=source_component,
                         **kwargs  # Now kwargs doesn't contain source_component
                     ) as span:
                         try:
@@ -432,11 +452,11 @@ class TelemetryClient:
                 @wraps(func)
                 async def async_wrapper(*args, **func_kwargs):
                     # Extract source_component from kwargs to avoid duplication
-                    source_component = kwargs.pop('source_component', 'agent')
+                    #source_component = kwargs.pop('source_component', 'agent')
                     
                     async with self.trace_agent_action(
                         action_type=action_type,
-                        source_component=source_component,
+                        #source_component=source_component,
                         **kwargs  # Now kwargs doesn't contain source_component
                     ) as span:
                         try:
@@ -458,11 +478,11 @@ class TelemetryClient:
                 @wraps(func)
                 def sync_wrapper(*args, **func_kwargs):
                     # Extract source_component from kwargs to avoid duplication
-                    source_component = kwargs.pop('source_component', 'agent')
+                    #source_component = kwargs.pop('source_component', 'agent')
                     
                     with self.trace_agent_action_sync(
                         action_type=action_type,
-                        source_component=source_component,
+                        #source_component=source_component,
                         **kwargs  # Now kwargs doesn't contain source_component
                     ) as span:
                         try:

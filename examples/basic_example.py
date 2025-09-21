@@ -55,7 +55,7 @@ async def example_context_managers():
         span.set_input("What is the meaning of life?")
         
         # Simulate LLM call
-        await asyncio.sleep(0.1)
+        ###await asyncio.sleep(0.1)
         response = "42 - The answer to the ultimate question"
         
         span.set_output(response)
@@ -73,7 +73,7 @@ async def example_context_managers():
         span.set_metadata("operation", "addition")
         
         # Simulate tool execution
-        await asyncio.sleep(0.05)
+        ###await asyncio.sleep(0.05)
         result = 4
         
         span.set_output(str(result))
@@ -113,18 +113,18 @@ async def example_decorators():
         project_id="decorator-example"
     )
     
-    @client.trace_model_call_decorator(provider="openai", model="gpt-3.5-turbo")
+    @client.trace_model_call_decorator(provider="openai", model="gpt-3.5-turbo", source_component="story_generator")
     async def generate_story(prompt: str) -> str:
         """Generate a story using AI (automatically traced)"""
         # Simulate API call
-        await asyncio.sleep(0.2)
+        ###await asyncio.sleep(0.2)
         return f"Once upon a time, based on '{prompt}', there was a great adventure..."
     
     @client.trace_tool_execution_decorator(tool_name="web_search")
     async def search_web(query: str) -> list:
         """Search the web (automatically traced)"""
         # Simulate web search
-        await asyncio.sleep(0.3)
+        ###await asyncio.sleep(0.3)
         return [
             {"title": f"Result 1 for {query}", "url": "https://example1.com"},
             {"title": f"Result 2 for {query}", "url": "https://example2.com"}
@@ -165,7 +165,7 @@ async def example_manual_events():
     model_event.start_timing()
     
     # Simulate processing
-    await asyncio.sleep(0.1)
+    ##await asyncio.sleep(0.1)
     
     model_event.end_timing()
     model_event.set_output("Hello! How can I help you today?")
@@ -182,7 +182,7 @@ async def example_manual_events():
     tool_event.start_timing()
     
     # Simulate database query
-    await asyncio.sleep(0.05)
+    ##await asyncio.sleep(0.05)
     
     tool_event.end_timing()
     tool_event.set_output("Retrieved 1,234 active users")

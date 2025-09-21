@@ -177,7 +177,7 @@ class AdvancedAIAgent:
                 else:
                     # Retry with backoff
                     backoff_time = 2 ** attempt
-                    await asyncio.sleep(backoff_time)
+                    #await asyncio.sleep(backoff_time)
                     await self._log_retry_attempt(task, attempt + 1, e)
 
     async def _single_task_execution(self, task: Task, attempt: int) -> Dict[str, Any]:
@@ -238,7 +238,7 @@ class AdvancedAIAgent:
                 llm_span.set_input(f"Create execution plan for {task.type.value} task: {task.description}")
                 
                 # Simulate LLM planning call
-                await asyncio.sleep(0.2)
+                #await asyncio.sleep(0.2)
                 
                 # Create plan based on task type
                 if task.type == TaskType.RESEARCH:
@@ -409,7 +409,7 @@ class AdvancedAIAgent:
             if tool:
                 # Add some variance to simulate real tool behavior
                 actual_latency = int(tool.avg_latency_ms * (0.8 + random.random() * 0.4))
-                await asyncio.sleep(actual_latency / 1000)
+                #await asyncio.sleep(actual_latency / 1000)
                 
                 # Simulate occasional tool failures
                 if random.random() > tool.reliability_score:
@@ -433,7 +433,7 @@ class AdvancedAIAgent:
                 
             else:
                 # No tool execution - manual processing
-                await asyncio.sleep(0.1)
+                #await asyncio.sleep(0.1)
                 result_data = {
                     "step": step,
                     "tool_used": None,
@@ -476,7 +476,7 @@ class AdvancedAIAgent:
                 synth_span.set_input(synthesis_input[:1000])
                 
                 # Simulate synthesis
-                await asyncio.sleep(0.3)
+                #await asyncio.sleep(0.3)
                 
                 if task.type == TaskType.RESEARCH:
                     final_output = f"Research findings on '{task.description}': Comprehensive analysis completed with verified sources and synthesized insights."
@@ -1042,7 +1042,7 @@ async def demo_real_time_monitoring():
                 failure_span.set_metadata("agent_id", agent.agent_id)
         
         # Brief pause between monitoring cycles
-        await asyncio.sleep(0.1)
+        #await asyncio.sleep(0.1)
     
     print(f"\n📋 Final Performance Report:")
     final_summary = agent.get_performance_summary()

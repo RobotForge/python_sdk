@@ -24,6 +24,7 @@ class TraceContext:
         source_component: str,
         **kwargs
     ):
+      
         self.client = client
         self.event_type = event_type
         self.source_component = source_component
@@ -108,7 +109,7 @@ class TraceContext:
                 # Don't let telemetry errors break the application
                 # Log the error if logging is available
                 if hasattr(self.client, '_logger'):
-                    self.client._logger.error(f"Failed to send telemetry event: {e}")
+                    self.client._logger.error(f"Failed to send telemetry event: {e.with_traceback(exc_tb)}")
 
 
 class SyncTraceContext:

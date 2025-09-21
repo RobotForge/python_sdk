@@ -132,7 +132,7 @@ async def demo_instrumentation_with_custom_logic():
         # Step 1: Manual tool execution
         async with client.trace_tool_execution(tool_name="data_validator") as tool_span:
             tool_span.set_input("Validating input data")
-            await asyncio.sleep(0.1)  # Simulate validation
+            ##await asyncio.sleep(0.1)  # Simulate validation
             tool_span.set_output("Data validation passed")
         
         # Step 2: HTTP call (automatically traced by instrumentation)
@@ -149,7 +149,7 @@ async def demo_instrumentation_with_custom_logic():
             model="internal-model"
         ) as model_span:
             model_span.set_input("Generate summary")
-            await asyncio.sleep(0.2)  # Simulate model call
+            ##await asyncio.sleep(0.2)  # Simulate model call
             model_span.set_output("Summary generated successfully")
             model_span.set_tokens(75)
         
