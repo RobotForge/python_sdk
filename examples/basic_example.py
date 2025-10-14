@@ -16,18 +16,19 @@ async def example_basic_setup():
     # Option 1: Manual setup
     client = TelemetryClient(
         api_key="change-me",
-        endpoint="https://localhost:8443",
-        project_id="example-project",
-        tenant_id="demo-tenant",
-        user_id="demo-user",
-        application_id="basic-example"
+        endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
+        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c",
+        tenant_id="00000000-0000-0000-0000-000000000001",
+        user_id="d9e108e6-5463-4f1a-bf44-880279551d9b",
+        application_id=""
+      
     )
     
     # Option 2: Quick setup (recommended)
     client = quick_setup(
         api_key="change-me",
-        endpoint="https://localhost:8443",
-        project_id="example-project"
+        endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
+        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c"
     )
     
     print(f"✅ Client created for project: {client.config.project_id}")
@@ -43,8 +44,8 @@ async def example_context_managers():
     
     client = quick_setup(
         api_key="change-me",
-        endpoint="https://localhost:8443", 
-        project_id="context-example"
+        endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app", 
+        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c"
     )
     
     # Model call tracing
@@ -109,8 +110,8 @@ async def example_decorators():
     
     client = quick_setup(
         api_key="change-me",
-        endpoint="https://localhost:8443",
-        project_id="decorator-example"
+        endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
+        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c"
     )
     
     @client.trace_model_call_decorator(provider="openai", model="gpt-3.5-turbo", source_component="story_generator")
@@ -153,8 +154,8 @@ async def example_manual_events():
     
     client = quick_setup(
         api_key="change-me",
-        endpoint="https://localhost:8443",
-        project_id="manual-example"
+        endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
+        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c"
     )
     
     # Create and send individual events
@@ -201,8 +202,8 @@ async def example_batch_processing():
     
     client = quick_setup(
         api_key="change-me",
-        endpoint="https://localhost:8443",
-        project_id="batch-example"
+        endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
+        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c"
     )
     
     # Create a batch
@@ -239,8 +240,8 @@ def example_sync_context():
     
     client = quick_setup(
         api_key="change-me",
-        endpoint="https://localhost:8443",
-        project_id="sync-example"
+        endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
+        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c"
     )
     
     # Sync model call
@@ -280,8 +281,8 @@ async def example_error_handling():
     
     client = quick_setup(
         api_key="change-me",
-        endpoint="https://localhost:8443",
-        project_id="error-example"
+        endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
+        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c"
     )
     
     # Example: Handling exceptions in traced functions
@@ -336,7 +337,7 @@ async def main():
         
     except Exception as e:
         print(f"\n❌ Example failed: {e}")
-        print("💭 Make sure your telemetry server is running at https://localhost:8443")
+        print("💭 Make sure your telemetry server is running at https://robotforge-telemetry-service-521301637963.us-central1.run.app")
 
 
 if __name__ == "__main__":

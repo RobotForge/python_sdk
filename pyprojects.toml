@@ -1,18 +1,18 @@
 [build-system]
-requires = ["setuptools>=64", "wheel", "setuptools_scm>=8"]
+requires = ["setuptools >= 77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "telemetry-sdk"
+name = "robotforge-python-sdk"
 dynamic = ["version"]
-description = "Multi-layered Python SDK for AI/ML telemetry"
+description = "Multi-layered Python SDK for AI/ML python"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
-    {name = "Your Organization", email = "support@yourorg.com"},
+    {name = "RobotForge", email = "support@robotforge.com.ng"},
 ]
 maintainers = [
-    {name = "Your Organization", email = "support@yourorg.com"},
+    {name = "RobotForge", email = "support@robotforge.com.ng"},
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -37,7 +37,7 @@ dependencies = [
     "typing-extensions>=4.0.0",
 ]
 keywords = [
-    "telemetry", 
+    "python", 
     "monitoring", 
     "ai", 
     "ml", 
@@ -67,16 +67,6 @@ web = [
     "fastapi>=0.100.0",
     "flask>=2.0.0",
     "django>=4.0.0",
-]
-
-# Additional ML/AI libraries
-ml = [
-    "transformers>=4.20.0",
-    "torch>=1.12.0",
-    "tensorflow>=2.10.0",
-    "scikit-learn>=1.1.0",
-    "numpy>=1.21.0",
-    "pandas>=1.4.0",
 ]
 
 # Configuration file support
@@ -110,34 +100,34 @@ docs = [
 
 # All optional dependencies (most common combinations)
 all = [
-    "telemetry-sdk[auto,web,config]",
+    "robotforge-python-sdk[auto,web,config]",
 ]
 
 # Everything including development tools
 full = [
-    "telemetry-sdk[auto,web,ml,config,dev,docs]",
+    "robotforge-python-sdk[auto,web,ml,config,dev,docs]",
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourorg/telemetry-sdk"
-Documentation = "https://telemetry-sdk.readthedocs.io/"
-Repository = "https://github.com/yourorg/telemetry-sdk.git"
-"Bug Tracker" = "https://github.com/yourorg/telemetry-sdk/issues"
-Changelog = "https://github.com/yourorg/telemetry-sdk/blob/main/CHANGELOG.md"
-"Funding" = "https://github.com/sponsors/yourorg"
+Homepage = "https://github.com/robotforge/python-sdk"
+Documentation = "https://robotforge-python-sdk.readthedocs.io/"
+Repository = "https://github.com/robotforge/python-sdk.git"
+"Bug Tracker" = "https://github.com/robotforge/python-sdk/issues"
+Changelog = "https://github.com/robotforge/python-sdk/blob/main/CHANGELOG.md"
+"Funding" = "https://github.com/sponsors/robotforge"
 
 [project.scripts]
-telemetry-cli = "telemetry_sdk.cli:main"
+python-cli = "robotforge_python_sdk.cli:main"
 
 [tool.setuptools]
-packages = ["telemetry_sdk"]
+packages = ["robotforge_python_sdk"]
 zip-safe = false
 
 [tool.setuptools.dynamic]
-version = {attr = "telemetry_sdk.__version__"}
+version = {attr = "robotforge_python_sdk.__version__"}
 
 [tool.setuptools.package-data]
-telemetry_sdk = ["py.typed", "*.yaml", "*.json"]
+python_sdk = ["py.typed", "*.yaml", "*.json"]
 
 # Black configuration
 [tool.black]
@@ -163,7 +153,7 @@ extend-exclude = '''
 profile = "black"
 multi_line_output = 3
 line_length = 88
-known_first_party = ["telemetry_sdk"]
+known_first_party = ["robotforge_python_sdk"]
 known_third_party = ["aiohttp", "pydantic", "openai", "anthropic", "langchain"]
 
 # mypy configuration
@@ -216,7 +206,7 @@ filterwarnings = [
 
 # Coverage configuration
 [tool.coverage.run]
-source = ["telemetry_sdk"]
+source = ["python_sdk"]
 omit = [
     "*/tests/*",
     "*/test_*",

@@ -5,15 +5,7 @@ Setup configuration for the Telemetry SDK package
 from setuptools import setup, find_packages
 from pathlib import Path
 
-# Read version from package
-def get_version():
-    """Get version from __init__.py"""
-    init_file = Path(__file__).parent / "telemetry_sdk" / "__init__.py"
-    with open(init_file, "r", encoding="utf-8") as f:
-        for line in f:
-            if line.startswith("__version__"):
-                return line.split("=")[1].strip().strip('"').strip("'")
-    return "1.0.0"
+VERSION = "0.1.0"
 
 # Read long description from README
 def get_long_description():
@@ -40,19 +32,19 @@ def read_requirements(filename):
         return []
 
 setup(
-    name="telemetry-sdk",
-    version=get_version(),
-    author="Your Organization",
-    author_email="support@yourorg.com",
+    name="robotforge-telemetry-sdk",
+    version=VERSION,
+    author="RobotForge",
+    author_email="support@robotforge.com.ng",
     description="Multi-layered Python SDK for AI/ML telemetry",
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
-    url="https://github.com/yourorg/telemetry-sdk",
+    url="https://github.com/robotforge/telemetry-sdk",
     project_urls={
-        "Bug Reports": "https://github.com/yourorg/telemetry-sdk/issues",
-        "Source": "https://github.com/yourorg/telemetry-sdk",
-        "Documentation": "https://telemetry-sdk.readthedocs.io/",
-        "Changelog": "https://github.com/yourorg/telemetry-sdk/blob/main/CHANGELOG.md",
+        "Bug Reports": "https://github.com/robotforge/python-sdk/issues",
+        "Source": "https://github.com/robotforge/python-sdk",
+        "Documentation": "https://robotforge-telemetry-sdk.readthedocs.io/",
+        "Changelog": "https://github.com/robotforge/python-sdk/blob/main/CHANGELOG.md",
     },
     packages=find_packages(exclude=["tests*", "docs*", "examples*"]),
     classifiers=[

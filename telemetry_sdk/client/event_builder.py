@@ -31,7 +31,7 @@ class EventBuilder:
             tenant_id=client.config.tenant_id,
             project_id=client.config.project_id,
             user_id=client.config.user_id,
-            application_id=client.config.application_id,
+            #application_id=client.config.application_id,
             status=EventStatus.SUCCESS,
             timestamp=None,  # Will be set when event is sent or built
             metadata={}
@@ -190,7 +190,7 @@ class EventBuilder:
         required_fields = [
             'event_id', 'event_type', 'source_component', 
             'session_id', 'tenant_id', 'project_id', 
-            'user_id', 'application_id'
+            'user_id','application_id'
         ]
         
         for field in required_fields:

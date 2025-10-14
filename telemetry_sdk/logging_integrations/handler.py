@@ -131,7 +131,7 @@ class TelemetryHandler(logging.Handler):
             tenant_id=self.client.config.tenant_id,
             project_id=self.client.config.project_id,
             user_id=self.client.config.user_id,
-            application_id=self.client.config.application_id,
+            #application_id=self.client.config.application_id,
             source_component=getattr(record, 'source_component', self.source_component),
             timestamp=datetime.fromtimestamp(record.created, tz=timezone.utc),
             status=EventStatus.SUCCESS,

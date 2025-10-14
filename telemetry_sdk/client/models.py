@@ -35,6 +35,9 @@ class TelemetryEvent:
     user_id: str
     application_id: str
     source_component: str
+    operation_name: Optional[str] = None
+    service_name: Optional[str] = None
+    tags: Optional[Dict[str, str]] = field(default_factory=dict)
     status: EventStatus = EventStatus.SUCCESS
     timestamp: Optional[datetime] = None
     parent_event_id: Optional[str] = None
@@ -79,6 +82,17 @@ class TelemetryEvent:
         self.add_metadata("error_type", type(error).__name__)
         self.add_metadata("error_message", str(error))
         return self
+    def add_tag(self, key: str, value: str) -> 'TelemetryEvent':
+       if self.tags is None:
+           self.tags = {}
+       self.tags[key] = value
+       return self
+   
+    def set_operation(self, operation_name: str, service_name: str = None) -> 'TelemetryEvent':
+        self.operation_name = operation_name
+        if service_name:
+            self.service_name = service_name
+        return self
 
 
 @dataclass
@@ -86,6 +100,7 @@ class EventIngestionRequest:
     """Request model for event ingestion"""
     event: TelemetryEvent
     details: Optional[Dict[str, Any]] = field(default_factory=dict)
+    
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for API request"""
@@ -99,6 +114,7 @@ class EventIngestionRequest:
 class BatchEventIngestionRequest:
     """Request model for batch event ingestion"""
     events: list[EventIngestionRequest]
+    batch_id: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for API request"""
