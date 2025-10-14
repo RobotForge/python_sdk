@@ -32,7 +32,7 @@ def read_requirements(filename):
         return []
 
 setup(
-    name="robotforge-telemetry-sdk",
+    name="robotforge-python-sdk",
     version=VERSION,
     author="RobotForge",
     author_email="support@robotforge.com.ng",
@@ -43,7 +43,7 @@ setup(
     project_urls={
         "Bug Reports": "https://github.com/robotforge/python-sdk/issues",
         "Source": "https://github.com/robotforge/python-sdk",
-        "Documentation": "https://robotforge-telemetry-sdk.readthedocs.io/",
+        "Documentation": "https://robotforge-python-sdk.readthedocs.io/",
         "Changelog": "https://github.com/robotforge/python-sdk/blob/main/CHANGELOG.md",
     },
     packages=find_packages(exclude=["tests*", "docs*", "examples*"]),
