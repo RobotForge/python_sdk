@@ -42,10 +42,22 @@ async def example_context_managers():
     print("\n🎯 Example 2: Context Managers")
     print("-" * 40)
     
-    client = quick_setup(
+    # client = quick_setup(
+    #     api_key="change-me",
+    #     endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app", 
+    #     project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c",
+    #     application_id=""
+    # )
+
+        # Option 1: Manual setup
+    client = TelemetryClient(
         api_key="change-me",
-        endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app", 
-        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c"
+        endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
+        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c",
+        tenant_id="00000000-0000-0000-0000-000000000001",
+        user_id="d9e108e6-5463-4f1a-bf44-880279551d9b",
+        application_id=""
+      
     )
     
     # Model call tracing
@@ -111,7 +123,8 @@ async def example_decorators():
     client = quick_setup(
         api_key="change-me",
         endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
-        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c"
+        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c",
+        application_id=""
     )
     
     @client.trace_model_call_decorator(provider="openai", model="gpt-3.5-turbo", source_component="story_generator")
@@ -155,7 +168,8 @@ async def example_manual_events():
     client = quick_setup(
         api_key="change-me",
         endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
-        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c"
+        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c",
+        application_id=""
     )
     
     # Create and send individual events
@@ -203,7 +217,8 @@ async def example_batch_processing():
     client = quick_setup(
         api_key="change-me",
         endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
-        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c"
+        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c",
+        application_id=""
     )
     
     # Create a batch
@@ -241,7 +256,8 @@ def example_sync_context():
     client = quick_setup(
         api_key="change-me",
         endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
-        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c"
+        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c",
+        application_id=""
     )
     
     # Sync model call
@@ -282,7 +298,8 @@ async def example_error_handling():
     client = quick_setup(
         api_key="change-me",
         endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
-        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c"
+        project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c",
+        application_id=""
     )
     
     # Example: Handling exceptions in traced functions
@@ -319,25 +336,40 @@ async def main():
     """Run all basic usage examples"""
     print("🎉 Telemetry SDK - Basic Usage Examples")
     print("=" * 50)
+
+
+    await example_basic_setup()
+    await example_context_managers()
+    await example_decorators()
+    await example_manual_events()
+    await example_batch_processing()
+    example_sync_context()
+    await example_error_handling()
     
-    try:
-        await example_basic_setup()
-        await example_context_managers()
-        await example_decorators()
-        await example_manual_events()
-        await example_batch_processing()
-        example_sync_context()
-        await example_error_handling()
+    print("\n🎊 All examples completed successfully!")
+    print("\n💡 Next steps:")
+    print("   - Check out advanced_agent.py for complex workflows")
+    print("   - See fastapi_app.py for web framework integration")
+    print("   - Try auto_instrumentation_example.py for zero-code tracing")
+    
+    # try:
+    #     await example_basic_setup()
+    #     await example_context_managers()
+    #     await example_decorators()
+    #     await example_manual_events()
+    #     await example_batch_processing()
+    #     example_sync_context()
+    #     await example_error_handling()
         
-        print("\n🎊 All examples completed successfully!")
-        print("\n💡 Next steps:")
-        print("   - Check out advanced_agent.py for complex workflows")
-        print("   - See fastapi_app.py for web framework integration")
-        print("   - Try auto_instrumentation_example.py for zero-code tracing")
+    #     print("\n🎊 All examples completed successfully!")
+    #     print("\n💡 Next steps:")
+    #     print("   - Check out advanced_agent.py for complex workflows")
+    #     print("   - See fastapi_app.py for web framework integration")
+    #     print("   - Try auto_instrumentation_example.py for zero-code tracing")
         
-    except Exception as e:
-        print(f"\n❌ Example failed: {e}")
-        print("💭 Make sure your telemetry server is running at https://robotforge-telemetry-service-521301637963.us-central1.run.app")
+    # except Exception as e:
+    #     print(f"\n❌ Example failed: {e}")
+    #     print("💭 Make sure your telemetry server is running at https://robotforge-telemetry-service-521301637963.us-central1.run.app")
 
 
 if __name__ == "__main__":

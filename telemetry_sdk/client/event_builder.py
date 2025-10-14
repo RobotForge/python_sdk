@@ -31,7 +31,7 @@ class EventBuilder:
             tenant_id=client.config.tenant_id,
             project_id=client.config.project_id,
             user_id=client.config.user_id,
-            #application_id=client.config.application_id,
+            application_id=client.config.application_id,
             status=EventStatus.SUCCESS,
             timestamp=None,  # Will be set when event is sent or built
             metadata={}
