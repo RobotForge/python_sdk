@@ -8,7 +8,7 @@ jobs:
     name: Publish release to PyPI
     runs-on: ubuntu-latest
     environment:
-      name: pypi
+      name: testpypi
       url: https://test.pypi.org/p/robotforge-python-sdk/
     permissions:
       id-token: write
