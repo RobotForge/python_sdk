@@ -45,7 +45,7 @@ from .utils import (
 )
 
 # Version
-__version__ = "1.0.0"
+__version__ = "0.1.3"
 
 # Main exports
 __all__ = [
