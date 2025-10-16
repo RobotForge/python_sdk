@@ -1,7 +1,7 @@
 name: robotforge-python-sdk
 on:
   release:
-    types: [created]
+    types: [created, edited]
 
 jobs:
   pypi-publish:
