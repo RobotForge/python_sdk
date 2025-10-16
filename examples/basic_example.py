@@ -20,7 +20,7 @@ async def example_basic_setup():
         project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c",
         tenant_id="00000000-0000-0000-0000-000000000001",
         user_id="d9e108e6-5463-4f1a-bf44-880279551d9b",
-        application_id=""
+        application_id="changeme"
       
     )
     
@@ -46,7 +46,7 @@ async def example_context_managers():
     #     api_key="change-me",
     #     endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app", 
     #     project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c",
-    #     application_id=""
+    #     application_id="changeme"
     # )
 
         # Option 1: Manual setup
@@ -56,7 +56,7 @@ async def example_context_managers():
         project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c",
         tenant_id="00000000-0000-0000-0000-000000000001",
         user_id="d9e108e6-5463-4f1a-bf44-880279551d9b",
-        application_id=""
+        application_id="changeme"
       
     )
     
@@ -124,7 +124,7 @@ async def example_decorators():
         api_key="change-me",
         endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
         project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c",
-        application_id=""
+        application_id="changeme"
     )
     
     @client.trace_model_call_decorator(provider="openai", model="gpt-3.5-turbo", source_component="story_generator")
@@ -169,7 +169,7 @@ async def example_manual_events():
         api_key="change-me",
         endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
         project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c",
-        application_id=""
+        application_id="20"
     )
     
     # Create and send individual events
@@ -218,7 +218,7 @@ async def example_batch_processing():
         api_key="change-me",
         endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
         project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c",
-        application_id=""
+        application_id="changeme"
     )
     
     # Create a batch
@@ -257,7 +257,7 @@ def example_sync_context():
         api_key="change-me",
         endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
         project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c",
-        application_id=""
+        application_id="changeme"
     )
     
     # Sync model call
@@ -299,7 +299,7 @@ async def example_error_handling():
         api_key="change-me",
         endpoint="https://robotforge-telemetry-service-521301637963.us-central1.run.app",
         project_id="7d2d963e-9426-48fc-89e7-589e2ddd705c",
-        application_id=""
+        application_id="changeme"
     )
     
     # Example: Handling exceptions in traced functions
