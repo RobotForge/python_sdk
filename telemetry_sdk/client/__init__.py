@@ -21,6 +21,18 @@ from .models import (
     APIResponse
 )
 
+# ✅ NEW IMPORTS: Specialized span classes
+from .observation_span import (
+    ObservationSpan,
+    ModelCallSpan,
+    ToolExecutionSpan,
+    AgentActionSpan
+)
+
+# ✅ NEW IMPORT: LLM pricing database
+from .pricing import LLMPricing
+
+
 __all__ = [
     # Main client
     "TelemetryClient",
@@ -30,6 +42,16 @@ __all__ = [
     "ModelCallEventBuilder", 
     "ToolExecutionEventBuilder",
     "AgentActionEventBuilder",
+
+    
+    # ✅ NEW: Specialized span classes
+    "ObservationSpan",
+    "ModelCallSpan",
+    "ToolExecutionSpan",
+    "AgentActionSpan",
+    
+    # ✅ NEW: LLM pricing
+    "LLMPricing",
     
     # Context managers
     "TraceContext",

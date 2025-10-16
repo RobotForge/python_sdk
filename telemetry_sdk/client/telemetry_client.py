@@ -14,6 +14,9 @@ from queue import Queue
 
 import aiohttp
 
+from telemetry_sdk.client.observation_span import ModelCallSpan
+from telemetry_sdk.client.pricing import LLMPricing
+
 from .models import (
     TelemetryConfig, TelemetryEvent, EventType, EventStatus, 
     EventIngestionRequest, BatchEventIngestionRequest, APIResponse
@@ -315,38 +318,74 @@ class TelemetryClient:
         batch.add_events(events, details_list)
         return await batch.send()
 
-    def trace_model_call_decorator(self, provider: str = None, model: str = None, **kwargs):
-        """Fixed decorator for automatically tracing model calls"""
-        #print(kwargs)
-        def decorator(func):
+    
+    def trace_model_call_decorator(
+        self,
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
+        *,
+        capture_input: bool = True,
+        capture_output: bool = True,
+        input_serializer: Optional[Callable] = None,
+        output_serializer: Optional[Callable] = None,
+        **kwargs
+    ):
+        """
+        Enhanced decorator for automatically tracing model calls with input/output capture.
+        
+        Args:
+            provider: LLM provider (e.g., 'openai', 'anthropic')
+            model: Model name (e.g., 'gpt-4', 'claude-3-opus')
+            capture_input: Whether to automatically capture function input (default: True)
+            capture_output: Whether to automatically capture function output (default: True)
+            input_serializer: Custom function to serialize input (default: auto-detect)
+            output_serializer: Custom function to serialize output (default: auto-detect)
+            **kwargs: Additional parameters passed to trace_model_call
+        
+        Example:
+            ```python
+            @client.trace_model_call_decorator(
+                provider="openai",
+                model="gpt-3.5-turbo"
+            )
+            def get_completion(prompt, model="gpt-3.5-turbo"):
+                response = openai.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                return response.choices[0].message.content
+            
+            # Input (prompt) and output automatically captured
+            result = get_completion("What is AI?")
+            ```
+        """
+        def decorator(func: Callable) -> Callable:
             if asyncio.iscoroutinefunction(func):
                 @wraps(func)
                 async def async_wrapper(*args, **func_kwargs):
-                    # Extract source_component from kwargs to avoid duplication
-                    
-                    #source_component = kwargs.get('source_component', func.__name__)
-
-                    print(args, func_kwargs, kwargs)
-                    
+                    # Create span with provider/model
                     async with self.trace_model_call(
                         provider=provider,
                         model=model,
-                        #source_component=source_component,
-                        **kwargs  # Now kwargs doesn't contain source_component
+                        **kwargs
                     ) as span:
                         try:
+                            # ✅ CAPTURE INPUT from function arguments
+                            if capture_input:
+                                input_data = self._extract_input_from_args(
+                                    args, func_kwargs, input_serializer
+                                )
+                                if input_data is not None:
+                                    span.update(input=input_data)
+                            
+                            # Execute the function
                             result = await func(*args, **func_kwargs)
                             
-                            # Try to extract common response patterns
-                            if hasattr(result, 'usage'):
-                                if hasattr(result.usage, 'total_tokens'):
-                                    span.set_tokens(result.usage.total_tokens)
-                            
-                            if hasattr(result, 'choices') and result.choices:
-                                if hasattr(result.choices[0], 'message'):
-                                    span.set_output(str(result.choices[0].message.content)[:1000])
-                                elif hasattr(result.choices[0], 'text'):
-                                    span.set_output(str(result.choices[0].text)[:1000])
+                            # ✅ CAPTURE OUTPUT and extract metadata from result
+                            if capture_output:
+                                self._process_llm_result(
+                                    span, result, provider, model, output_serializer
+                                )
                             
                             return result
                             
@@ -359,22 +398,28 @@ class TelemetryClient:
             else:
                 @wraps(func)
                 def sync_wrapper(*args, **func_kwargs):
-                    # Extract source_component from kwargs to avoid duplication
-                    #source_component = kwargs.pop('source_component', func.__name__)
-                    
                     with self.trace_model_call_sync(
                         provider=provider,
                         model=model,
-                        #source_component=source_component,
-                        **kwargs  # Now kwargs doesn't contain source_component
+                        **kwargs
                     ) as span:
                         try:
+                            # ✅ CAPTURE INPUT
+                            if capture_input:
+                                input_data = self._extract_input_from_args(
+                                    args, func_kwargs, input_serializer
+                                )
+                                if input_data is not None:
+                                    span.update(input=input_data)
+                            
+                            # Execute the function
                             result = func(*args, **func_kwargs)
                             
-                            # Try to extract common response patterns
-                            if hasattr(result, 'usage'):
-                                if hasattr(result.usage, 'total_tokens'):
-                                    span.set_tokens(result.usage.total_tokens)
+                            # ✅ CAPTURE OUTPUT and metadata
+                            if capture_output:
+                                self._process_llm_result(
+                                    span, result, provider, model, output_serializer
+                                )
                             
                             return result
                             
@@ -384,30 +429,179 @@ class TelemetryClient:
                             raise
                 
                 return sync_wrapper
+        
         return decorator
-
-    def trace_tool_execution_decorator(self, tool_name: str, **kwargs):
-        """Fixed decorator for automatically tracing tool executions"""
-        def decorator(func):
+    
+    def _extract_input_from_args(
+        self,
+        args: tuple,
+        kwargs: dict,
+        serializer: Optional[Callable] = None
+    ) -> Optional[Any]:
+        """
+        Extract input data from function arguments.
+        Tries to intelligently find the prompt/input parameter.
+        """
+        if serializer:
+            return serializer(args, kwargs)
+        
+        # Strategy 1: Check for common parameter names in kwargs
+        for param_name in ['prompt', 'input', 'query', 'question', 'messages', 'text']:
+            if param_name in kwargs:
+                return kwargs[param_name]
+        
+        # Strategy 2: Use first positional argument if available
+        if args:
+            return args[0]
+        
+        # Strategy 3: Return first kwarg value if only one exists
+        if len(kwargs) == 1:
+            return list(kwargs.values())[0]
+        
+        return None
+    
+    def _process_llm_result(
+        self,
+        span: ModelCallSpan,
+        result: Any,
+        provider: Optional[str],
+        model: Optional[str],
+        serializer: Optional[Callable] = None
+    ) -> None:
+        """
+        Process LLM result to extract output, tokens, cost, etc.
+        Handles common LLM response formats from OpenAI, Anthropic, etc.
+        """
+        if serializer:
+            output = serializer(result)
+            span.update(output=output)
+            return
+        
+        # Handle string results (already extracted content)
+        if isinstance(result, str):
+            span.update(output=result)
+            return
+        
+        # Handle OpenAI-style responses
+        if hasattr(result, 'choices') and result.choices:
+            choice = result.choices[0]
+            
+            # Extract output text
+            if hasattr(choice, 'message'):
+                output_text = choice.message.content
+                span.update(output=output_text)
+            elif hasattr(choice, 'text'):
+                output_text = choice.text
+                span.update(output=output_text)
+            
+            # Extract finish reason
+            if hasattr(choice, 'finish_reason'):
+                span.set_finish_reason(choice.finish_reason)
+        
+        # Handle usage/token information
+        if hasattr(result, 'usage'):
+            usage = result.usage
+            usage_dict = {
+                'prompt_tokens': getattr(usage, 'prompt_tokens', 0),
+                'completion_tokens': getattr(usage, 'completion_tokens', 0),
+                'total_tokens': getattr(usage, 'total_tokens', 0)
+            }
+            
+            # Set usage details
+            span.set_usage_details(usage_dict)
+            
+            # Calculate and set cost if provider and model are known
+            if provider and model and usage_dict['total_tokens'] > 0:
+                cost = LLMPricing.calculate_cost(
+                    provider=provider,
+                    model=model,
+                    prompt_tokens=usage_dict['prompt_tokens'],
+                    completion_tokens=usage_dict['completion_tokens']
+                )
+                if cost is not None:
+                    span.set_cost_details(cost)
+        
+        # Handle Anthropic-style responses
+        elif hasattr(result, 'content') and hasattr(result, 'usage'):
+            # Extract content
+            if isinstance(result.content, list) and len(result.content) > 0:
+                output_text = result.content[0].text if hasattr(result.content[0], 'text') else str(result.content[0])
+                span.update(output=output_text)
+            elif isinstance(result.content, str):
+                span.update(output=result.content)
+            
+            # Extract usage
+            if hasattr(result.usage, 'input_tokens'):
+                usage_dict = {
+                    'prompt_tokens': result.usage.input_tokens,
+                    'completion_tokens': result.usage.output_tokens,
+                    'total_tokens': result.usage.input_tokens + result.usage.output_tokens
+                }
+                span.set_usage_details(usage_dict)
+                
+                if provider and model:
+                    cost = LLMPricing.calculate_cost(
+                        provider=provider,
+                        model=model,
+                        prompt_tokens=usage_dict['prompt_tokens'],
+                        completion_tokens=usage_dict['completion_tokens']
+                    )
+                    if cost is not None:
+                        span.set_cost_details(cost)
+            
+            # Extract stop reason
+            if hasattr(result, 'stop_reason'):
+                span.set_finish_reason(result.stop_reason)
+    
+    def trace_tool_execution_decorator(
+        self,
+        tool_name: str,
+        *,
+        capture_input: bool = True,
+        capture_output: bool = True,
+        **kwargs
+    ):
+        """
+        Enhanced decorator for automatically tracing tool executions.
+        
+        Args:
+            tool_name: Name of the tool being executed
+            capture_input: Whether to automatically capture function input (default: True)
+            capture_output: Whether to automatically capture function output (default: True)
+            **kwargs: Additional parameters passed to trace_tool_execution
+        
+        Example:
+            ```python
+            @client.trace_tool_execution_decorator(tool_name="web_search")
+            def search_web(query: str) -> list:
+                results = requests.get(f"https://api.search.com?q={query}")
+                return results.json()
+            
+            # Input and output automatically captured
+            results = search_web("AI news")
+            ```
+        """
+        def decorator(func: Callable) -> Callable:
             if asyncio.iscoroutinefunction(func):
                 @wraps(func)
                 async def async_wrapper(*args, **func_kwargs):
-                    # Extract source_component from kwargs to avoid duplication
-                    #source_component = kwargs.pop('source_component', tool_name)
-                    
                     async with self.trace_tool_execution(
                         tool_name=tool_name,
-                        #source_component=source_component,
-                        **kwargs  # Now kwargs doesn't contain source_component
+                        **kwargs
                     ) as span:
                         try:
+                            # Capture input
+                            if capture_input:
+                                input_data = self._extract_input_from_args(args, func_kwargs)
+                                if input_data is not None:
+                                    span.update(input=input_data)
+                            
+                            # Execute function
                             result = await func(*args, **func_kwargs)
                             
-                            # Set output if result is serializable
-                            if isinstance(result, (str, int, float, bool)):
-                                span.set_output(str(result)[:1000])
-                            elif hasattr(result, '__dict__'):
-                                span.set_output(str(result)[:1000])
+                            # Capture output
+                            if capture_output and result is not None:
+                                span.update(output=result)
                             
                             return result
                             
@@ -420,20 +614,23 @@ class TelemetryClient:
             else:
                 @wraps(func)
                 def sync_wrapper(*args, **func_kwargs):
-                    # Extract source_component from kwargs to avoid duplication
-                    #source_component = kwargs.pop('source_component', tool_name)
-                    
                     with self.trace_tool_execution_sync(
                         tool_name=tool_name,
-                        #source_component=source_component,
-                        **kwargs  # Now kwargs doesn't contain source_component
+                        **kwargs
                     ) as span:
                         try:
+                            # Capture input
+                            if capture_input:
+                                input_data = self._extract_input_from_args(args, func_kwargs)
+                                if input_data is not None:
+                                    span.update(input=input_data)
+                            
+                            # Execute function
                             result = func(*args, **func_kwargs)
                             
-                            # Set output if result is serializable
-                            if isinstance(result, (str, int, float, bool)):
-                                span.set_output(str(result)[:1000])
+                            # Capture output
+                            if capture_output and result is not None:
+                                span.update(output=result)
                             
                             return result
                             
@@ -443,28 +640,59 @@ class TelemetryClient:
                             raise
                 
                 return sync_wrapper
+        
         return decorator
-
-    def trace_agent_action_decorator(self, action_type: str, **kwargs):
-        """Fixed decorator for automatically tracing agent actions"""
-        def decorator(func):
+    
+    def trace_agent_action_decorator(
+        self,
+        action_type: str,
+        *,
+        capture_input: bool = True,
+        capture_output: bool = True,
+        **kwargs
+    ):
+        """
+        Enhanced decorator for automatically tracing agent actions.
+        
+        Args:
+            action_type: Type of agent action (e.g., 'planning', 'reasoning', 'decision')
+            capture_input: Whether to automatically capture function input (default: True)
+            capture_output: Whether to automatically capture function output (default: True)
+            **kwargs: Additional parameters passed to trace_agent_action
+        
+        Example:
+            ```python
+            @client.trace_agent_action_decorator(action_type="planning")
+            def plan_tasks(goal: str) -> list:
+                # Agent planning logic
+                tasks = break_down_goal(goal)
+                return tasks
+            
+            # Input and output automatically captured
+            tasks = plan_tasks("Build a web app")
+            ```
+        """
+        def decorator(func: Callable) -> Callable:
             if asyncio.iscoroutinefunction(func):
                 @wraps(func)
                 async def async_wrapper(*args, **func_kwargs):
-                    # Extract source_component from kwargs to avoid duplication
-                    #source_component = kwargs.pop('source_component', 'agent')
-                    
                     async with self.trace_agent_action(
                         action_type=action_type,
-                        #source_component=source_component,
-                        **kwargs  # Now kwargs doesn't contain source_component
+                        **kwargs
                     ) as span:
                         try:
+                            # Capture input
+                            if capture_input:
+                                input_data = self._extract_input_from_args(args, func_kwargs)
+                                if input_data is not None:
+                                    span.update(input=input_data)
+                            
+                            # Execute function
                             result = await func(*args, **func_kwargs)
                             
-                            # Set output if result is serializable
-                            if isinstance(result, (str, int, float, bool)):
-                                span.set_output(str(result)[:1000])
+                            # Capture output
+                            if capture_output and result is not None:
+                                span.update(output=result)
                             
                             return result
                             
@@ -477,20 +705,23 @@ class TelemetryClient:
             else:
                 @wraps(func)
                 def sync_wrapper(*args, **func_kwargs):
-                    # Extract source_component from kwargs to avoid duplication
-                    #source_component = kwargs.pop('source_component', 'agent')
-                    
                     with self.trace_agent_action_sync(
                         action_type=action_type,
-                        #source_component=source_component,
-                        **kwargs  # Now kwargs doesn't contain source_component
+                        **kwargs
                     ) as span:
                         try:
+                            # Capture input
+                            if capture_input:
+                                input_data = self._extract_input_from_args(args, func_kwargs)
+                                if input_data is not None:
+                                    span.update(input=input_data)
+                            
+                            # Execute function
                             result = func(*args, **func_kwargs)
                             
-                            # Set output if result is serializable
-                            if isinstance(result, (str, int, float, bool)):
-                                span.set_output(str(result)[:1000])
+                            # Capture output
+                            if capture_output and result is not None:
+                                span.update(output=result)
                             
                             return result
                             
@@ -500,185 +731,10 @@ class TelemetryClient:
                             raise
                 
                 return sync_wrapper
+        
         return decorator
 
-    # # Decorator Methods
-    # def trace_model_call_decorator(self, provider: str = None, model: str = None, **kwargs):
-    #     """Decorator for automatically tracing model calls"""
-    #     def decorator(func: Callable):
-    #         if asyncio.iscoroutinefunction(func):
-    #             @wraps(func)
-    #             async def async_wrapper(*args, **func_kwargs):
-    #                 source_component = kwargs.get('source_component', func.__name__)
-                    
-    #                 async with self.trace_model_call(
-    #                     provider=provider,
-    #                     model=model,
-    #                     source_component=source_component,
-    #                     **kwargs
-    #                 ) as span:
-    #                     try:
-    #                         result = await func(*args, **func_kwargs)
-                            
-    #                         # Try to extract common response patterns
-    #                         if hasattr(result, 'usage'):
-    #                             if hasattr(result.usage, 'total_tokens'):
-    #                                 span.set_tokens(result.usage.total_tokens)
-                            
-    #                         if hasattr(result, 'choices') and result.choices:
-    #                             if hasattr(result.choices[0], 'message'):
-    #                                 span.set_output(str(result.choices[0].message.content)[:1000])
-    #                             elif hasattr(result.choices[0], 'text'):
-    #                                 span.set_output(str(result.choices[0].text)[:1000])
-                            
-    #                         return result
-                            
-    #                     except Exception as e:
-    #                         span.set_status(EventStatus.ERROR)
-    #                         span.set_error(e)
-    #                         raise
-                
-    #             return async_wrapper
-    #         else:
-    #             @wraps(func)
-    #             def sync_wrapper(*args, **func_kwargs):
-    #                 source_component = kwargs.get('source_component', func.__name__)
-                    
-    #                 with self.trace_model_call_sync(
-    #                     provider=provider,
-    #                     model=model,
-    #                     source_component=source_component,
-    #                     **kwargs
-    #                 ) as span:
-    #                     try:
-    #                         result = func(*args, **func_kwargs)
-                            
-    #                         # Try to extract common response patterns
-    #                         if hasattr(result, 'usage'):
-    #                             if hasattr(result.usage, 'total_tokens'):
-    #                                 span.set_tokens(result.usage.total_tokens)
-                            
-    #                         return result
-                            
-    #                     except Exception as e:
-    #                         span.set_status(EventStatus.ERROR)
-    #                         span.set_error(e)
-    #                         raise
-                
-    #             return sync_wrapper
-    #     return decorator
-
-    # def trace_tool_execution_decorator(self, tool_name: str, **kwargs):
-    #     """Decorator for automatically tracing tool executions"""
-    #     def decorator(func: Callable):
-    #         if asyncio.iscoroutinefunction(func):
-    #             @wraps(func)
-    #             async def async_wrapper(*args, **func_kwargs):
-    #                 source_component = kwargs.get('source_component', tool_name)
-                    
-    #                 async with self.trace_tool_execution(
-    #                     tool_name=tool_name,
-    #                     source_component=source_component,
-    #                     **kwargs
-    #                 ) as span:
-    #                     try:
-    #                         result = await func(*args, **func_kwargs)
-                            
-    #                         # Set output if result is serializable
-    #                         if isinstance(result, (str, int, float, bool)):
-    #                             span.set_output(str(result)[:1000])
-    #                         elif hasattr(result, '__dict__'):
-    #                             span.set_output(str(result)[:1000])
-                            
-    #                         return result
-                            
-    #                     except Exception as e:
-    #                         span.set_status(EventStatus.ERROR)
-    #                         span.set_error(e)
-    #                         raise
-                
-    #             return async_wrapper
-    #         else:
-    #             @wraps(func)
-    #             def sync_wrapper(*args, **func_kwargs):
-    #                 source_component = kwargs.get('source_component', tool_name)
-                    
-    #                 with self.trace_tool_execution_sync(
-    #                     tool_name=tool_name,
-    #                     source_component=source_component,
-    #                     **kwargs
-    #                 ) as span:
-    #                     try:
-    #                         result = func(*args, **func_kwargs)
-                            
-    #                         # Set output if result is serializable
-    #                         if isinstance(result, (str, int, float, bool)):
-    #                             span.set_output(str(result)[:1000])
-                            
-    #                         return result
-                            
-    #                     except Exception as e:
-    #                         span.set_status(EventStatus.ERROR)
-    #                         span.set_error(e)
-    #                         raise
-                
-    #             return sync_wrapper
-    #     return decorator
-
-    # def trace_agent_action_decorator(self, action_type: str, **kwargs):
-    #     """Decorator for automatically tracing agent actions"""
-    #     def decorator(func: Callable):
-    #         if asyncio.iscoroutinefunction(func):
-    #             @wraps(func)
-    #             async def async_wrapper(*args, **func_kwargs):
-    #                 source_component = kwargs.get('source_component', 'agent')
-                    
-    #                 async with self.trace_agent_action(
-    #                     action_type=action_type,
-    #                     source_component=source_component,
-    #                     **kwargs
-    #                 ) as span:
-    #                     try:
-    #                         result = await func(*args, **func_kwargs)
-                            
-    #                         # Set output if result is serializable
-    #                         if isinstance(result, (str, int, float, bool)):
-    #                             span.set_output(str(result)[:1000])
-                            
-    #                         return result
-                            
-    #                     except Exception as e:
-    #                         span.set_status(EventStatus.ERROR)
-    #                         span.set_error(e)
-    #                         raise
-                
-    #             return async_wrapper
-    #         else:
-    #             @wraps(func)
-    #             def sync_wrapper(*args, **func_kwargs):
-    #                 source_component = kwargs.get('source_component', 'agent')
-                    
-    #                 with self.trace_agent_action_sync(
-    #                     action_type=action_type,
-    #                     source_component=source_component,
-    #                     **kwargs
-    #                 ) as span:
-    #                     try:
-    #                         result = func(*args, **func_kwargs)
-                            
-    #                         # Set output if result is serializable
-    #                         if isinstance(result, (str, int, float, bool)):
-    #                             span.set_output(str(result)[:1000])
-                            
-    #                         return result
-                            
-    #                     except Exception as e:
-    #                         span.set_status(EventStatus.ERROR)
-    #                         span.set_error(e)
-    #                         raise
-                
-    #             return sync_wrapper
-    #     return decorator
+  
 
     # Utility Methods
     async def health_check(self) -> bool:

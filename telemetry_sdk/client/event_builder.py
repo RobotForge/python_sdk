@@ -67,6 +67,63 @@ class EventBuilder:
         if cost is not None and cost >= 0:
             self._event.cost = cost
         return self
+    
+
+      # ✅ NEW METHOD 1: set_usage_details()
+    def set_usage_details(self, usage: Dict[str, int]) -> 'EventBuilder':
+        """
+        Set token usage details (prompt_tokens, completion_tokens, total_tokens).
+        This is a convenience method that:
+        1. Sets the token_count from total_tokens
+        2. Stores full usage details in metadata
+        
+        Args:
+            usage: Dict with keys like 'prompt_tokens', 'completion_tokens', 'total_tokens'
+        
+        Example:
+            builder.set_usage_details({
+                "prompt_tokens": 50,
+                "completion_tokens": 100,
+                "total_tokens": 150
+            })
+        """
+        if usage is None:
+            return self
+        
+        # Set token_count from total_tokens
+        total_tokens = usage.get('total_tokens')
+        if total_tokens is not None:
+            self.set_tokens(total_tokens)
+        
+        # Store full usage details in metadata for detailed analysis
+        self.set_metadata('usage_details', usage)
+        
+        return self
+    
+    # ✅ NEW METHOD 2: set_model_parameters()
+    def set_model_parameters(self, params: Dict[str, Any]) -> 'EventBuilder':
+        """
+        Set model parameters (temperature, max_tokens, top_p, etc.).
+        Stores parameters in metadata for analysis.
+        
+        Args:
+            params: Dict with model configuration parameters
+        
+        Example:
+            builder.set_model_parameters({
+                "temperature": 0.7,
+                "max_tokens": 500,
+                "top_p": 1.0
+            })
+        """
+        if params is None:
+            return self
+        
+        # Store model parameters in metadata
+        self.set_metadata('model_parameters', params)
+        
+        return self
+
 
     def set_status(self, status: EventStatus) -> 'EventBuilder':
         """Set event status"""
