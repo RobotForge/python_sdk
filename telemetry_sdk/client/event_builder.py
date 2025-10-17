@@ -43,7 +43,24 @@ class EventBuilder:
             raise ValidationError("Event ID cannot be empty")
         self._event.event_id = event_id
         return self
+    
+    def set_provider(self, provider: str) -> 'ModelCallEventBuilder':
+        """Set the model provider (e.g., 'openai', 'anthropic')"""
+        self._event.provider = provider  # ✅ NEW: Set on event
+        self.set_details(provider=provider)  # Keep for backwards compat
+        return self
 
+    def set_model(self, model: str) -> 'ModelCallEventBuilder':
+        """Set the model name (e.g., 'gpt-4', 'claude-3')"""
+        self._event.model_name = model  # ✅ NEW: Set on event
+        self.set_details(model_name=model)
+        return self
+
+    def set_finish_reason(self, reason: str) -> 'ModelCallEventBuilder':
+        """Set the finish reason"""
+        self.set_details(finish_reason=reason)
+        return self
+    
     def set_input(self, text: str) -> 'EventBuilder':
         """Set input text for the event"""
         if text is not None:

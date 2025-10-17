@@ -38,6 +38,9 @@ class TelemetryEvent:
     operation_name: Optional[str] = None
     service_name: Optional[str] = None
     tags: Optional[Dict[str, str]] = field(default_factory=dict)
+    provider: Optional[str] = None           # LLM provider
+    model_name: Optional[str] = None         # Model identifier
+    top_p: Optional[float] = None  
     status: EventStatus = EventStatus.SUCCESS
     timestamp: Optional[datetime] = None
     parent_event_id: Optional[str] = None
