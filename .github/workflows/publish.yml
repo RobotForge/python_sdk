@@ -1,4 +1,4 @@
-name: robotforge-telemetry-sdk
+name: robotforge-python-sdk
 
 on:
   push:
@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/robotforge-telemetry-sdk/
+      url: https://pypi.org/p/robotforge-python-sdk/
     permissions:
       id-token: write
     steps:
