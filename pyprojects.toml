@@ -109,11 +109,11 @@ full = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/robotforge/python-sdk"
-Documentation = "https://robotforge-python-sdk.readthedocs.io/"
-Repository = "https://github.com/robotforge/python-sdk.git"
-"Bug Tracker" = "https://github.com/robotforge/python-sdk/issues"
-Changelog = "https://github.com/robotforge/python-sdk/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/robotforge/python_sdk"
+Documentation = "https://github.com/robotforge/python_sdk"
+Repository = "https://github.com/robotforge/python_sdk.git"
+"Bug Tracker" = "https://github.com/robotforge/python_sdk/issues"
+Changelog = "https://github.com/robotforge/python_sdk/blob/main/CHANGELOG.md"
 "Funding" = "https://github.com/sponsors/robotforge"
 
 [project.scripts]
