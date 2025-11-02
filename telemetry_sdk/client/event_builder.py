@@ -28,7 +28,7 @@ class EventBuilder:
             event_type=event_type,
             source_component=source_component,
             session_id=client.config.session_id,
-            # tenant_id=client.config.tenant_id,
+            tenant_id=client.config.tenant_id,
             # project_id=client.config.project_id,
             # user_id=client.config.user_id,
             application_id=client.config.application_id,
@@ -263,8 +263,7 @@ class EventBuilder:
         # Check required fields
         required_fields = [
             'event_id', 'event_type', 'source_component', 
-            'session_id', 'tenant_id', 'project_id', 
-            'user_id','application_id'
+            'session_id'
         ]
         
         for field in required_fields:

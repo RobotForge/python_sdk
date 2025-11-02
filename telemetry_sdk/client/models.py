@@ -30,11 +30,12 @@ class TelemetryEvent:
     event_id: str
     event_type: EventType
     session_id: str
-    # tenant_id: str
+    
     # project_id: str
     # user_id: str
     application_id: str
     source_component: str
+    tenant_id: Optional[str] = None
     operation_name: Optional[str] = None
     service_name: Optional[str] = None
     tags: Optional[Dict[str, str]] = field(default_factory=dict)
@@ -132,7 +133,7 @@ class TelemetryConfig:
     api_key: str
     endpoint: str = "https://cloud.robotforge.com.ng"
     # project_id: str
-    # tenant_id: str = "default"
+    tenant_id: str = "default"
     # user_id: str = "default"
     application_id: str = "default"
     session_id: Optional[str] = None
@@ -152,7 +153,7 @@ class TelemetryConfig:
         #     raise ValueError("endpoint is required")
         # if not self.project_id:
         #     raise ValueError("project_id is required")
-        if self.endpoint is not "https://cloud.robotforge.com.ng":
+        if self.endpoint != "https://cloud.robotforge.com.ng":
             raise ValueError("Invalid endpoint. We do not support external endpoints yet")
         
         self.endpoint = self.endpoint.rstrip('/')
