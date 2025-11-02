@@ -46,9 +46,7 @@ import telemetery_sdk
 
 # Initialize the SDK
 client = TelemetryClient(
-    api_key="your-api-key",
-    endpoint="https://cloud.robotforge.com.ng",
-    project_id="your-project-id"
+    api_key="your-api-key"
 )
 ```
 
@@ -60,8 +58,7 @@ from telemetry_sdk.client import TelemetryClient
 
 async def main():
     client = TelmetryClient(
-        api_key="your-api-key",
-        project_id="my-ai-app"
+        api_key="your-api-key"
     )
     
     # Trace a model call
@@ -465,15 +462,11 @@ client = TelemetryClient(
     # Required
     api_key="your-api-key",
     
-    # Optional
-    endpoint="https://api.robotforge.com.ng",  # Default endpoint
-    project_id="my-project",
-    tenant_id="my-tenant",
+
     application_id="my-app",
     
     # Session management
     session_id=None,  # Auto-generated if not provided
-    user_id="user_123",
     
     # Performance tuning
     batch_size=10,  # Number of events to batch before sending
@@ -491,9 +484,6 @@ You can also configure the SDK using environment variables:
 
 ```bash
 export ROBOTFORGE_API_KEY="your-api-key"
-export ROBOTFORGE_ENDPOINT="https://api.robotforge.com.ng"
-export ROBOTFORGE_PROJECT_ID="my-project"
-export ROBOTFORGE_DEBUG="true"
 ```
 
 ```python
@@ -558,69 +548,7 @@ response = await bot.chat(
 )
 ```
 
-### Example 2: AI Agent with Tools
 
-```python
-from telemetry_sdk.client import TelemetryClient
-import aiohttp
-
-class AIAgent:
-    def __init__(self, forge_key: str):
-        self.forge = TelemetryClient(api_key=forge_key)
-    
-    async def research_topic(self, topic: str) -> dict:
-        # Step 1: Search the web
-        search_results = await self._web_search(topic)
-        
-        # Step 2: Analyze results with LLM
-        analysis = await self._analyze_results(topic, search_results)
-        
-        return {
-            "topic": topic,
-            "search_results": search_results,
-            "analysis": analysis
-        }
-    
-    async def _web_search(self, query: str) -> list:
-        async with self.forge.trace_tool_execution(
-            tool_name="web_search",
-            action="search",
-            endpoint="https://api.search.com/v1/search"
-        ) as span:
-            span.set_input(query)
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    "https://api.search.com/v1/search",
-                    params={"q": query}
-                ) as response:
-                    results = await response.json()
-                    
-            span.set_output(str(results))
-            span.set_http_status_code(response.status)
-            
-            return results
-    
-    async def _analyze_results(self, topic: str, results: list) -> str:
-        async with self.forge.trace_model_call(
-            provider="anthropic",
-            model="claude-3-opus"
-        ) as span:
-            prompt = f"Analyze these search results about {topic}: {results}"
-            span.set_input(prompt)
-            
-            # Call Claude
-            analysis = await call_claude(prompt)
-            
-            span.set_output(analysis)
-            span.set_metadata("num_results", len(results))
-            
-            return analysis
-
-# Usage
-agent = AIAgent(forge_key="forge_key")
-report = await agent.research_topic("quantum computing")
-```
 
 ### Example 3: Batch Processing
 
@@ -754,12 +682,12 @@ async def generate_text(prompt: str) -> str:
 
 We're actively developing additional features to make the RobotForge SDK even more powerful:
 
-### Agent Support (Coming Q1 2025)
+### Agent Support (Coming Q4 2025)
 - **Agent Action Tracing**: Full support for tracing complex agent behaviors, planning, and reasoning
 - **Multi-Agent Coordination**: Track interactions between multiple AI agents
 - **Decision Trees**: Visualize agent decision-making processes
 
-### Auto-Instrumentation (Coming Q1 2025)
+### Auto-Instrumentation (Coming Q4 2025)
 - **Zero-Code Setup**: Automatically instrument popular AI frameworks
 - **Supported Libraries**: 
   - OpenAI (GPT models)
@@ -769,7 +697,7 @@ We're actively developing additional features to make the RobotForge SDK even mo
   - Hugging Face Transformers
 - **Drop-in Integration**: Single line of code to enable comprehensive tracing
 
-### Integrations (Coming Q2 2025)
+### Integrations (Coming Q1 2026)
 - **Vector Databases**: Pinecone, Weaviate, Qdrant
 - **Frameworks**: FastAPI, Flask, Django middleware
 - **Observability Platforms**: OpenTelemetry, Datadog, New Relic
@@ -780,70 +708,13 @@ We're actively developing additional features to make the RobotForge SDK even mo
 We'll be publishing our detailed roadmap soon with dates, features, and opportunities for community input. Stay tuned to:
 
 - **GitHub**: [github.com/robotforge/python-sdk](https://github.com/robotforge/python-sdk)
-- **Documentation**: [docs.robotforge.com.ng](https://docs.robotforge.com.ng)
-- **Blog**: [robotforge.com.ng/blog](https://robotforge.com.ng/blog)
+
+
 
 Want to influence our roadmap? Join our community and share your feedback!
 
 ---
 
-## 🐛 Troubleshooting
-
-### Events Not Appearing
-
-**Problem**: Events aren't showing up in your dashboard.
-
-**Solutions**:
-1. Check that you're calling `await client.flush()` before your application exits
-2. Verify your API key and endpoint are correct
-3. Enable debug mode: `TelemetryClient(api_key="key", debug=True)`
-4. Check for network connectivity issues
-
-```python
-# Enable debugging
-client = TelemetryClient(
-    api_key="key",
-    debug=True  # Prints detailed logs
-)
-```
-
-### High Latency
-
-**Problem**: Adding telemetry is slowing down your application.
-
-**Solutions**:
-1. Increase batch size to reduce network calls:
-   ```python
-   client = TelemetryClient(
-       api_key="key",
-       batch_size=50,  # Send 50 events at once
-       flush_interval=10.0  # Flush every 10 seconds
-   )
-   ```
-2. Use async context managers for better performance
-3. Consider sampling in high-traffic scenarios (sample 10% of requests)
-
-### Memory Issues
-
-**Problem**: Memory usage is growing over time.
-
-**Solutions**:
-1. Ensure you're calling `flush()` regularly
-2. Reduce batch size for long-running applications
-3. Avoid storing large objects in metadata
-
-```python
-# For long-running services
-async def periodic_flush(client):
-    while True:
-        await asyncio.sleep(60)  # Flush every minute
-        await client.flush()
-
-# Run in background
-asyncio.create_task(periodic_flush(client))
-```
-
----
 
 ## 📚 API Reference
 
@@ -854,12 +725,9 @@ class RobotForge:
     def __init__(
         self,
         api_key: str,
-        endpoint: str = "https://api.robotforge.com.ng",
-        project_id: str = None,
         tenant_id: str = None,
         application_id: str = None,
         session_id: str = None,
-        user_id: str = None,
         batch_size: int = 10,
         flush_interval: float = 5.0,
         max_retries: int = 3,
