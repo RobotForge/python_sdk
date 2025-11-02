@@ -92,10 +92,7 @@ _default_client: Optional[TelemetryClient] = None
 
 def quick_setup(
     api_key: str,
-    endpoint: str,
-    project_id: str,
     tenant_id: str = "default",
-    user_id: str = "default",
     application_id: str = "default",
     enable_auto_instrumentation: bool = True,
     enable_logging: bool = True,
@@ -142,10 +139,6 @@ def quick_setup(
     # Create client
     client = TelemetryClient(
         api_key=api_key,
-        # endpoint=endpoint,
-        # project_id=project_id,
-        # tenant_id=tenant_id,
-        # user_id=user_id,
         application_id=application_id,
         **kwargs
     )
