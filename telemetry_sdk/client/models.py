@@ -30,9 +30,9 @@ class TelemetryEvent:
     event_id: str
     event_type: EventType
     session_id: str
-    tenant_id: str
-    project_id: str
-    user_id: str
+    # tenant_id: str
+    # project_id: str
+    # user_id: str
     application_id: str
     source_component: str
     operation_name: Optional[str] = None
@@ -130,10 +130,10 @@ class BatchEventIngestionRequest:
 class TelemetryConfig:
     """Configuration for telemetry client"""
     api_key: str
-    endpoint: str
-    project_id: str
-    tenant_id: str = "default"
-    user_id: str = "default"
+    endpoint: str = "https://cloud.robotforge.com.ng"
+    # project_id: str
+    # tenant_id: str = "default"
+    # user_id: str = "default"
     application_id: str = "default"
     session_id: Optional[str] = None
     auto_send: bool = True
@@ -148,10 +148,12 @@ class TelemetryConfig:
         """Post-initialization validation"""
         if not self.api_key:
             raise ValueError("api_key is required")
-        if not self.endpoint:
-            raise ValueError("endpoint is required")
-        if not self.project_id:
-            raise ValueError("project_id is required")
+        # if not self.endpoint:
+        #     raise ValueError("endpoint is required")
+        # if not self.project_id:
+        #     raise ValueError("project_id is required")
+        if self.endpoint is not "https://cloud.robotforge.com.ng":
+            raise ValueError("Invalid endpoint. We do not support external endpoints yet")
         
         self.endpoint = self.endpoint.rstrip('/')
         

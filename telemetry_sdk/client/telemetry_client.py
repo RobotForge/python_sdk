@@ -42,8 +42,8 @@ class TelemetryClient:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        endpoint: Optional[str] = None,
-        project_id: Optional[str] = None,
+        #endpoint: Optional[str] = None,
+        #project_id: Optional[str] = None,
         config: Optional[TelemetryConfig] = None,
         **kwargs
     ):
@@ -53,8 +53,8 @@ class TelemetryClient:
         else:
             config_params = {
                 'api_key': api_key,
-                'endpoint': endpoint, 
-                'project_id': project_id,
+                'endpoint': 'https://cloud.robotforge.com.ng', 
+                #'project_id': project_id,
                 **kwargs
             }
             # Remove None values

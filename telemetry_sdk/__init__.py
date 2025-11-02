@@ -142,10 +142,10 @@ def quick_setup(
     # Create client
     client = TelemetryClient(
         api_key=api_key,
-        endpoint=endpoint,
-        project_id=project_id,
-        tenant_id=tenant_id,
-        user_id=user_id,
+        # endpoint=endpoint,
+        # project_id=project_id,
+        # tenant_id=tenant_id,
+        # user_id=user_id,
         application_id=application_id,
         **kwargs
     )
