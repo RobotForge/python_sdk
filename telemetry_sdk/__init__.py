@@ -23,19 +23,19 @@ from .client import (
     APIResponse
 )
 
-# Auto-instrumentation imports
-from .instrumentation import (
-    AutoInstrumentation,
-    FrameworkIntegrations
-)
+# # Auto-instrumentation imports
+# from .instrumentation import (
+#     AutoInstrumentation,
+#     FrameworkIntegrations
+# )
 
-# Logging integration imports
-from .logging_integrations import (
-    TelemetryHandler,
-    TelemetryLogger,
-    configure_telemetry_logging,
-    setup_telemetry_logging
-)
+# # Logging integration imports
+# from .logging_integrations import (
+#     TelemetryHandler,
+#     TelemetryLogger,
+#     configure_telemetry_logging,
+#     setup_telemetry_logging
+# )
 
 # Utility imports
 from .utils import (
@@ -45,7 +45,7 @@ from .utils import (
 )
 
 # Version
-__version__ = "0.1.3"
+__version__ = "0.2.2"
 
 # Main exports
 __all__ = [
@@ -65,15 +65,15 @@ __all__ = [
     "TelemetryConfig",
     "APIResponse",
     
-    # Auto-instrumentation
-    "AutoInstrumentation",
-    "FrameworkIntegrations",
+    # # Auto-instrumentation
+    # "AutoInstrumentation",
+    # "FrameworkIntegrations",
     
-    # Logging integration
-    "TelemetryHandler",
-    "TelemetryLogger",
-    "configure_telemetry_logging",
-    "setup_telemetry_logging",
+    # # Logging integration
+    # "TelemetryHandler",
+    # "TelemetryLogger",
+    # "configure_telemetry_logging",
+    # "setup_telemetry_logging",
     
     # Utilities
     "ConfigManager",
@@ -94,8 +94,8 @@ def quick_setup(
     api_key: str,
     tenant_id: str = "default",
     application_id: str = "default",
-    enable_auto_instrumentation: bool = True,
-    enable_logging: bool = True,
+    #enable_auto_instrumentation: bool = True,
+    #enable_logging: bool = True,
     set_as_default: bool = True,
     **kwargs
 ) -> TelemetryClient:
@@ -143,14 +143,14 @@ def quick_setup(
         **kwargs
     )
     
-    # Setup auto-instrumentation if requested
-    if enable_auto_instrumentation:
-        auto_instr = AutoInstrumentation(client)
-        auto_instr.instrument_all()
+    # # Setup auto-instrumentation if requested
+    # if enable_auto_instrumentation:
+    #     auto_instr = AutoInstrumentation(client)
+    #     auto_instr.instrument_all()
     
-    # Setup logging if requested
-    if enable_logging:
-        configure_telemetry_logging(client)
+    # # Setup logging if requested
+    # if enable_logging:
+    #     configure_telemetry_logging(client)
     
     # Set as default client if requested
     if set_as_default:

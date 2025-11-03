@@ -1,2 +1,7 @@
 .env
 /examples_copy
+/telemetry_sdk/__pycache__/
+/telemetry_sdk/client/__pycache__/
+/telemetry_sdk/utils/__pycache__/
+/telemetry_sdk/instrumentation
+/telemetry_sdk/logging
