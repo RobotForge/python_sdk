@@ -5,7 +5,7 @@ Setup configuration for the Telemetry SDK package
 from setuptools import setup, find_packages
 from pathlib import Path
 
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 
 # Read long description from README
 def get_long_description():
