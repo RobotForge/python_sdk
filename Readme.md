@@ -2,7 +2,7 @@ Perfect! Here's a **ready-to-publish GitHub-friendly Markdown README** for Robot
 
 ---
 
-# ![RobotForge Logo](https://raw.githubusercontent.com/robotforge/logo/main/logo.png) RobotForge Python SDK
+# ![RobotForge Logo](https://robotforge.com.ng/wp-content/uploads/2025/07/ChatGPT-Image-Jul-26-2025-02_22_37-PM.png) RobotForge Python SDK
 
 [![PyPI](https://img.shields.io/pypi/v/robotforge-python-sdk)](https://pypi.org/project/robotforge-python-sdk/)
 [![Python Version](https://img.shields.io/pypi/pyversions/robotforge-python-sdk)](https://pypi.org/project/robotforge-python-sdk/)
