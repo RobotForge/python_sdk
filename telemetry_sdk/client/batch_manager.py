@@ -247,19 +247,19 @@ class AutoBatchManager:
     async def add_event(self, event: TelemetryEvent, details: Optional[Dict[str, Any]] = None) -> Optional[APIResponse]:
         """Add event asynchronously without blocking."""
         try:
-            print(f"[AutoBatch] Adding event → {event.event_type} / {event.event_id}")
+            #print(f"[AutoBatch] Adding event → {event.event_type} / {event.event_id}")
             self._event_queue.put_nowait((event, details or {}))
-            print(f"[AutoBatch] Queue size after add: {self._event_queue.qsize()}")
+            #print(f"[AutoBatch] Queue size after add: {self._event_queue.qsize()}")
             
             if not self._processing:
                 return await self._process_events()
             return None
         except asyncio.QueueFull:
-            print("[AutoBatch] Queue full; dropping event")
+            #print("[AutoBatch] Queue full; dropping event")
             self.client._logger.warning("AutoBatch queue full; dropping event.")
             return None
         except Exception as e:
-            print(f"[AutoBatch] Error adding event: {e}")
+            #print(f"[AutoBatch] Error adding event: {e}")
             self.client._logger.error(f"AutoBatch add_event error: {e}")
             return None
 
@@ -275,22 +275,22 @@ class AutoBatchManager:
         try:
             processed = 0
             now = time.time()
-            print(f"[AutoBatch] Processing queue (initial size: {self._event_queue.qsize()})")
+            #print(f"[AutoBatch] Processing queue (initial size: {self._event_queue.qsize()})")
 
             while processed < self.client.config.batch_size and not self._event_queue.empty():
                 try:
                     event, details = self._event_queue.get_nowait()
-                    print(f"[AutoBatch] → Dequeued event {event.event_id}")
+                    #print(f"[AutoBatch] → Dequeued event {event.event_id}")
                     self._batch.add_event(event, details)
                     processed += 1
                 except asyncio.QueueEmpty:
-                    print("[AutoBatch] Queue empty mid-process")
+                    #print("[AutoBatch] Queue empty mid-process")
                     break
                 except Exception as e:
-                    print(f"[AutoBatch] Error processing event: {e}")
+                    #print(f"[AutoBatch] Error processing event: {e}")
                     self.client._logger.warning(f"Queue event error: {e}")
 
-            print(f"[AutoBatch] Batch size after processing: {self._batch.size()}")
+            #print(f"[AutoBatch] Batch size after processing: {self._batch.size()}")
 
             should_send = (
                 self._batch.is_full()
@@ -300,12 +300,12 @@ class AutoBatchManager:
 
             if should_send and not self._batch.is_empty():
                 try:
-                    print(f"[AutoBatch] Sending batch of {self._batch.size()} events...")
+                    #print(f"[AutoBatch] Sending batch of {self._batch.size()} events...")
                     response = await self._batch.send()
-                    print(f"[AutoBatch] ✅ Batch send complete.")
+                    #print(f"[AutoBatch] ✅ Batch send complete.")
                     self._last_send_time = now
                 except Exception as e:
-                    print(f"[AutoBatch] ❌ Batch send failed: {e}")
+                    #print(f"[AutoBatch] ❌ Batch send failed: {e}")
                     self.client._logger.warning(f"Batch send failed: {e}")
                     self._batch.clear()
                     self._last_send_time = now
@@ -313,13 +313,13 @@ class AutoBatchManager:
         finally:
             await asyncio.sleep(0.01)
             self._processing = False
-            print(f"[AutoBatch] Processing finished. Queue size: {self._event_queue.qsize()} | Batch size: {self._batch.size()}")
+            #print(f"[AutoBatch] Processing finished. Queue size: {self._event_queue.qsize()} | Batch size: {self._batch.size()}")
 
         return response
 
     async def flush(self) -> Optional[APIResponse]:
         """Force flush all remaining events and batches."""
-        print(f"[AutoBatch] 🚀 Full flush start. Queue={self._event_queue.qsize()} Batch={self._batch.size()}")
+        #print(f"[AutoBatch] 🚀 Full flush start. Queue={self._event_queue.qsize()} Batch={self._batch.size()}")
         responses = []
 
         # Drain the queue completely
@@ -329,13 +329,13 @@ class AutoBatchManager:
             # If batch has events after draining — send it
             if not self._batch.is_empty():
                 try:
-                    print(f"[AutoBatch] Flushing batch ({self._batch.size()} events)...")
+                    #print(f"[AutoBatch] Flushing batch ({self._batch.size()} events)...")
                     resp = await self._batch.send()
                     self._last_send_time = time.time()
                     responses.append(resp)
-                    print("[AutoBatch] ✅ Batch flushed.")
+                    #print("[AutoBatch] ✅ Batch flushed.")
                 except Exception as e:
-                    print(f"[AutoBatch] ❌ Flush failed: {e}")
+                    #print(f"[AutoBatch] ❌ Flush failed: {e}")
                     self.client._logger.warning(f"Flush failed: {e}")
                     self._batch.clear()
 
@@ -346,7 +346,7 @@ class AutoBatchManager:
             if self._event_queue.empty() and self._batch.is_empty():
                 break
 
-        print(f"[AutoBatch] 🧹 Flush complete. Remaining Queue={self._event_queue.qsize()} Batch={self._batch.size()}")
+        #print(f"[AutoBatch] 🧹 Flush complete. Remaining Queue={self._event_queue.qsize()} Batch={self._batch.size()}")
         return responses[-1] if responses else None
 
 

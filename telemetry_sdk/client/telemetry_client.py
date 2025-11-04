@@ -295,11 +295,11 @@ class TelemetryClient:
             if loop and loop.is_running():
                 # Schedule async add_event without blocking
                 asyncio.create_task(self._auto_batch_manager.add_event(event, details))
-                print(f"[AutoBatch] Queued sync event (async loop) → {event.event_id}")
+                #print(f"[AutoBatch] Queued sync event (async loop) → {event.event_id}")
             else:
                 # Run in a temporary loop if not already inside async context
                 asyncio.run(self._auto_batch_manager.add_event(event, details))
-                print(f"[AutoBatch] Queued sync event (new loop) → {event.event_id}")
+                #print(f"[AutoBatch] Queued sync event (new loop) → {event.event_id}")
 
         except Exception as e:
             if hasattr(self, "_logger"):
@@ -390,7 +390,7 @@ class TelemetryClient:
         """Synchronous context manager for tracing agent actions"""
         kwargs['action_type'] = action_type
         source_component = kwargs.get('source_component', 'agent')
-        print(source_component)
+        #print(source_component)
         return SyncTraceContext(self, EventType.AGENT_ACTION, source_component, **kwargs)
 
     # Event Builder Factory Methods
