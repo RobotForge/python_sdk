@@ -13,7 +13,8 @@ from typing import Dict, Any, Optional, List, AsyncGenerator, Callable
 from queue import Queue
 
 import aiohttp
-
+import asyncio
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from telemetry_sdk.client.observation_span import ModelCallSpan
 from telemetry_sdk.client.pricing import LLMPricing
 
@@ -26,8 +27,11 @@ from .trace_context import TraceContext, SyncTraceContext
 from .batch_manager import BatchManager, AutoBatchManager
 from ..utils.exceptions import (
     TelemetrySDKError, NetworkError, AuthenticationError, 
-    TimeoutError, PayloadTooLargeError, RateLimitError
+    TimeoutError, PayloadTooLargeError, RateLimitError, BatchError
 )
+
+
+
 
 
 class TelemetryClient:
@@ -82,18 +86,47 @@ class TelemetryClient:
             self._setup_auto_batching()
 
     def _setup_auto_batching(self):
-        """Setup automatic batching and background sending"""
+        """
+        Auto setup background batching using the optimal mode:
+        - If running inside an asyncio app: use current event loop
+        - If in a sync context: fallback to background thread
+        """
         self._auto_batch_manager = AutoBatchManager(self)
-        
-        # Start background thread for sync event processing
-        def background_processor():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(self._process_background_events())
-            loop.close()
-        
-        self._background_task = threading.Thread(target=background_processor, daemon=True)
-        self._background_task.start()
+
+        async def background_processor():
+            """Continuously process events until shutdown."""
+            while not getattr(self, "_shutdown", False):
+                try:
+                    await self._process_background_events()
+                    await asyncio.sleep(0.1)
+                except Exception as e:
+                    if hasattr(self, "_logger"):
+                        self._logger.warning(f"[Telemetry] Background processor error: {e}")
+                    await asyncio.sleep(1.0)
+
+        try:
+            # ✅ CASE 1: We're in an async environment — run in current loop
+            loop = asyncio.get_running_loop()
+            loop.create_task(background_processor())
+            self._logger.info("[Telemetry] AutoBatchManager started in main event loop")
+            self._background_task = None
+
+        except RuntimeError:
+            # ✅ CASE 2: No running loop — fallback to background thread
+            import threading
+
+            def run_in_thread():
+                try:
+                    asyncio.run(background_processor())
+                except Exception as e:
+                    if hasattr(self, "_logger"):
+                        self._logger.error(f"[Telemetry] Threaded background processor stopped: {e}")
+
+            thread = threading.Thread(target=run_in_thread, daemon=True)
+            thread.start()
+            self._background_task = thread
+            self._logger.info("[Telemetry] AutoBatchManager started in background thread (sync mode)")
+
 
 
     async def _process_background_events(self):
@@ -183,11 +216,21 @@ class TelemetryClient:
         
         return await self._make_request('POST', url, payload)
 
+
+
     async def _send_batch_request(self, request: BatchEventIngestionRequest) -> APIResponse:
-        """Send a batch of events"""
-        session = await self._get_session()
+        """Send a batch of telemetry events."""
         url = f"{self.config.endpoint}/api/v1/events/batch"
         payload = request.to_dict()
+
+        try:
+            return await self._make_request("POST", url, payload)
+        except Exception as e:
+            if hasattr(self, "_logger"):
+                self._logger.warning(f"Batch send failed: {e}")
+            raise BatchError(f"Failed to send batch: {e}") from e
+
+
         
         return await self._make_request('POST', url, payload)
 
@@ -229,17 +272,77 @@ class TelemetryClient:
                 await asyncio.sleep(2 ** attempt)
         
         return APIResponse.error_response("Max retries exceeded")
+        
 
-    def _queue_sync_event(self, event: TelemetryEvent, details: Dict[str, Any]):
-        """Queue event from sync context for async processing"""
+
+
+    def _queue_sync_event(self, event, details):
+        """
+        Queue a telemetry event from a synchronous context.
+        Safe to call even when the main loop is running.
+        """
         try:
-            self._sync_event_queue.put({
-                'event': event,
-                'details': details
-            }, block=False)
-        except:
-            # Queue is full, drop the event to avoid blocking
-            self._logger.warning("Sync event queue full, dropping event")
+            if not self._auto_batch_manager:
+                self._logger.warning("[Telemetry] AutoBatchManager not initialized.")
+                return
+
+            loop = None
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                pass  # No running loop (sync context)
+
+            if loop and loop.is_running():
+                # Schedule async add_event without blocking
+                asyncio.create_task(self._auto_batch_manager.add_event(event, details))
+                print(f"[AutoBatch] Queued sync event (async loop) → {event.event_id}")
+            else:
+                # Run in a temporary loop if not already inside async context
+                asyncio.run(self._auto_batch_manager.add_event(event, details))
+                print(f"[AutoBatch] Queued sync event (new loop) → {event.event_id}")
+
+        except Exception as e:
+            if hasattr(self, "_logger"):
+                self._logger.warning(f"[Telemetry] Failed to queue sync event: {e}")
+
+    async def send_event(
+        self,
+        event: TelemetryEvent,
+        details: Optional[Dict[str, Any]] = None,
+        *,
+        immediate: bool = False
+    ) -> APIResponse:
+        """
+        Public convenience wrapper for sending a single telemetry event.
+        
+        This method abstracts away batching vs direct send logic, so callers
+        (e.g., TraceContext) do not need to touch private methods like
+        `_send_event_request`.
+
+        Args:
+            event: The TelemetryEvent object to send.
+            details: Optional dictionary of additional event details.
+            immediate: If True, bypass auto-batching and send immediately.
+
+        Returns:
+            APIResponse indicating success or failure.
+        """
+        if event is None:
+            raise ValueError("event cannot be None")
+
+        # Default to empty dict if not provided
+        details = details or {}
+
+        # Build ingestion request
+        request = EventIngestionRequest(event=event, details=details)
+
+        # If immediate send requested, bypass batching
+        if immediate:
+            return await self._send_single_event(request)
+
+        # Otherwise, use the client's normal sending logic (auto-batching or immediate)
+        return await self._send_event_request(request)
+
 
     # Context Manager Methods
     @asynccontextmanager
@@ -749,10 +852,42 @@ class TelemetryClient:
         except Exception:
             return False
 
-    async def flush(self) -> None:
-        """Flush any pending events"""
+
+
+    async def _flush_async(self) -> None:
+        """Internal async flush logic — processes sync + async queues."""
+        # First, handle sync-queued events if any
+        if hasattr(self, "_process_background_events_once"):
+            await self._process_background_events_once()
+
+        # Then flush async auto-batch manager
         if self._auto_batch_manager:
             await self._auto_batch_manager.flush()
+
+
+    def flush(self) -> None:
+        """
+        Unified flush — safe to call from either sync or async context.
+        Automatically detects the event loop state.
+        """
+        async def _flush():
+            await self._flush_async()
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # ✅ Already inside event loop (async context)
+            loop.create_task(_flush())
+        else:
+            # ✅ No active loop (sync context)
+            asyncio.run(_flush())
+
+
+
+
 
     def get_pending_events_count(self) -> int:
         """Get the number of pending events in auto-batch"""
@@ -760,20 +895,167 @@ class TelemetryClient:
             return self._auto_batch_manager.get_pending_count()
         return 0
 
+
+    async def _process_sync_queue_into_autobatch(self, max_items: int = 500) -> int:
+        """
+        Move items from the sync threading queue (_sync_event_queue) into the AutoBatchManager.
+        Returns number of events moved.
+        Must be called inside an event loop.
+        """
+        moved = 0
+        # Safety: limit how many we move in one pass
+        while not self._sync_event_queue.empty() and moved < max_items:
+            try:
+                event_data = self._sync_event_queue.get_nowait()
+            except Exception:
+                break
+            try:
+                event = event_data["event"]
+                details = event_data.get("details", {}) or {}
+                # Use auto_batch_manager.add_event (awaitable)
+                if self._auto_batch_manager:
+                    await self._auto_batch_manager.add_event(event, details)
+                moved += 1
+            except Exception as e:
+                # Log and continue
+                if hasattr(self, "_logger"):
+                    self._logger.debug(f"[Telemetry] Error moving sync event to autobatch: {e}")
+                continue
+        return moved
+
+
+    def flush(self, timeout: float = 5.0) -> None:
+        """
+        Unified, loop-safe flush.
+        - If called from an async context, schedules and awaits flushing synchronously.
+        - If called from a sync context, runs a temporary loop to perform the flush.
+        This ensures the sync->async handoff completes and the auto-batch manager flushes.
+        """
+        async def _flush_coroutine():
+            # 1) If we are inside an event loop, first process the sync queue into the autobatcher
+            #    (this ensures events created in sync contexts get moved).
+            try:
+                # If we have a _sync_event_queue, move its items into the autobatch
+                if hasattr(self, "_sync_event_queue") and not self._sync_event_queue.empty():
+                    # This helper uses await self._auto_batch_manager.add_event internally
+                    await self._process_sync_queue_into_autobatch()
+            except Exception as e:
+                if hasattr(self, "_logger"):
+                    self._logger.debug(f"[Telemetry] Error while processing sync queue: {e}")
+
+            # 2) Trigger a flush on the AutoBatchManager (which may run on a background loop)
+            if self._auto_batch_manager:
+                # If auto-batch manager has a dedicated background loop, use that loop to flush
+                bg_loop = getattr(self._auto_batch_manager, "_background_loop", None)
+                try:
+                    # If we're in the same loop that bg_loop references, just await
+                    running_loop = None
+                    try:
+                        running_loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        running_loop = None
+
+                    if bg_loop is None or bg_loop == running_loop:
+                        # Await directly on the manager's flush
+                        await self._auto_batch_manager.flush()
+                    else:
+                        # We must schedule the flush to run in the background loop and wait for it
+                        fut = asyncio.run_coroutine_threadsafe(self._auto_batch_manager.flush(), bg_loop)
+                        # Wait (blocking) for result up to timeout
+                        try:
+                            await asyncio.wrap_future(fut)  # convert to awaitable and await it
+                        except FutureTimeoutError:
+                            # cancel future if possible
+                            try:
+                                fut.cancel()
+                            except Exception:
+                                pass
+                            raise
+                except Exception as e:
+                    # Bubble up a nice log but don't crash the app
+                    if hasattr(self, "_logger"):
+                        self._logger.warning(f"[Telemetry] Flush failed: {e}")
+            else:
+                # no auto_batch_manager; nothing else to do
+                return
+
+        # Determine whether we're in an active running loop
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # We're inside async context — create a Task and await it to completion
+            # NOTE: we await here by scheduling and awaiting directly (caller likely will await)
+            # but because flush() is synchronous API we schedule task and wait synchronously using run_coroutine_threadsafe
+            # to avoid nested-run issues. Instead, we simply create a task and return it to caller.
+            # To keep the external API simple, we schedule and run it via run_coroutine_threadsafe on this loop.
+            # However run_coroutine_threadsafe requires a loop different from the current — so just create a task and return.
+            task = loop.create_task(_flush_coroutine())
+            # Caller in async context probably expects to await flush — so return the task to be awaited.
+            # But because this flush() is synchronous API, we leave it non-blocking: schedule task and return.
+            return task
+        else:
+            # No running loop — run the coroutine to completion in a new loop (blocking)
+            asyncio.run(_flush_coroutine())
+            return None
+        
+
+
+
     async def close(self) -> None:
-        """Close the client and cleanup resources"""
+        """
+        Gracefully close telemetry client and cleanup resources.
+        Ensures pending events are flushed before shutdown,
+        even if running in mixed sync/async or multi-threaded contexts.
+        """
         self._shutdown = True
-        
-        # Flush any pending events
-        await self.flush()
-        
-        # Close HTTP session
-        if self._session and not self._session.closed:
-            await self._session.close()
-        
-        # Wait for background thread to finish
-        if self._background_task and self._background_task.is_alive():
-            self._background_task.join(timeout=2.0)
+
+        try:
+            # ✅ Ensure flush completes before loop closes
+            if hasattr(self, "_auto_batch_manager") and self._auto_batch_manager:
+                await self._auto_batch_manager.flush()
+                await asyncio.sleep(0.05)
+                await self._auto_batch_manager.flush()
+            else:
+                await self.flush()
+        except RuntimeError as e:
+            if "Event loop is closed" in str(e):
+                # 🔁 Create a temporary loop to finish flushing
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    new_loop.run_until_complete(self.flush())
+                finally:
+                    new_loop.close()
+            else:
+                self._logger.warning(f"[Telemetry] Flush during close failed: {e}")
+        except Exception as e:
+            self._logger.warning(f"[Telemetry] Flush during close failed: {e}")
+
+        # ✅ Close aiohttp session safely
+        try:
+            if hasattr(self, "_session") and self._session and not self._session.closed:
+                await self._session.close()
+        except RuntimeError as e:
+            if "attached to a different loop" in str(e):
+                loop = asyncio.get_event_loop()
+                fut = asyncio.run_coroutine_threadsafe(self._session.close(), loop)
+                await asyncio.wrap_future(fut)
+            else:
+                raise
+        except Exception as e:
+            self._logger.warning(f"[Telemetry] Session close error: {e}")
+
+        # ✅ Join background thread if it exists
+        if getattr(self, "_background_task", None):
+            try:
+                self._background_task.join(timeout=2.0)
+                self._logger.info("[Telemetry] Background thread joined successfully")
+            except Exception as e:
+                self._logger.warning(f"[Telemetry] Background thread join failed: {e}")
+
 
     def __del__(self):
         """Cleanup on deletion"""

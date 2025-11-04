@@ -1,7 +1,17 @@
+
+# Environment
 .env
+
+# Ignore compiled Python files
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore __pycache__ directories anywhere in the repo
+__pycache__/
+**/__pycache__/
+
+# Project specific directories (kept for backward compatibility)
 /examples_copy
-/telemetry_sdk/__pycache__/
-/telemetry_sdk/client/__pycache__/
-/telemetry_sdk/utils/__pycache__/
 /telemetry_sdk/instrumentation
 /telemetry_sdk/logging

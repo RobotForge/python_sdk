@@ -1,16 +1,19 @@
 """
-Fixed AutoBatchManager using lock-free approach
-File: telemetry_sdk/client/batch_manager.py
-
-Only this file needs to be updated - keeps the same API but removes asyncio.Lock
+Fixed AutoBatchManager using lock-free approach with minor correctness updates.
 """
 
 import asyncio
+import threading
 import time
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from dataclasses import dataclass
 
-from .models import TelemetryEvent, EventIngestionRequest, BatchEventIngestionRequest, APIResponse
+from .models import (
+    TelemetryEvent,
+    EventIngestionRequest,
+    BatchEventIngestionRequest,
+    APIResponse,
+)
 from ..utils.exceptions import BatchError, ValidationError
 
 if TYPE_CHECKING:
@@ -29,358 +32,352 @@ class BatchStats:
 
 class BatchManager:
     """Manages batching and bulk sending of telemetry events"""
-    
-    def __init__(self, client: 'TelemetryClient'):
+
+    def __init__(self, client: "TelemetryClient"):
         self.client = client
         self._events: List[EventIngestionRequest] = []
         self._start_time: Optional[float] = None
         self._max_batch_size = client.config.batch_size
         self._max_payload_size = client.config.max_payload_size
 
-    def add_event(
-        self, 
-        event: TelemetryEvent, 
-        details: Optional[Dict[str, Any]] = None
-    ) -> 'BatchManager':
-        """Add an event to the batch"""
+    def add_event(self, event: TelemetryEvent, details: Optional[Dict[str, Any]] = None) -> "BatchManager":
+        """Add an event to the batch."""
         if self.is_full():
             raise BatchError(f"Batch is full (max size: {self._max_batch_size})")
-        
+
         request = EventIngestionRequest(event=event, details=details or {})
-        
-        # Check payload size if configured
+
+        # Enforce payload size limit
         if self._max_payload_size:
             request_size = len(str(request.to_dict()))
-            current_size = self.get_total_size()
-            
-            if current_size + request_size > self._max_payload_size:
+            if self.get_total_size() + request_size > self._max_payload_size:
                 raise BatchError(
                     f"Adding event would exceed maximum payload size "
-                    f"({current_size + request_size} > {self._max_payload_size} bytes)"
+                    f"({self.get_total_size() + request_size} > {self._max_payload_size} bytes)"
                 )
-        
+
         self._events.append(request)
         return self
 
-    def add_events(
-        self, 
-        events: List[TelemetryEvent], 
-        details_list: Optional[List[Dict[str, Any]]] = None
-    ) -> 'BatchManager':
-        """Add multiple events to the batch"""
+    def add_events(self, events: List[TelemetryEvent], details_list: Optional[List[Dict[str, Any]]] = None) -> "BatchManager":
+        """Add multiple events to the batch."""
         if details_list and len(events) != len(details_list):
             raise ValidationError("Number of events and details must match")
-        
+
         for i, event in enumerate(events):
             details = details_list[i] if details_list else None
             self.add_event(event, details)
-        
+
         return self
 
-    def remove_event(self, index: int) -> 'BatchManager':
-        """Remove an event from the batch by index"""
-        if 0 <= index < len(self._events):
-            self._events.pop(index)
-        else:
-            raise IndexError(f"Invalid event index: {index}")
-        return self
-
-    def clear(self) -> 'BatchManager':
-        """Clear all events from the batch"""
+    def clear(self) -> "BatchManager":
+        """Clear all events."""
         self._events.clear()
         self._start_time = None
         return self
 
     def is_empty(self) -> bool:
-        """Check if the batch is empty"""
         return len(self._events) == 0
 
     def is_full(self) -> bool:
-        """Check if the batch is at maximum capacity"""
         return len(self._events) >= self._max_batch_size
 
     def size(self) -> int:
-        """Get the number of events in the batch"""
         return len(self._events)
 
     def get_total_size(self) -> int:
-        """Get the total size in bytes of all events in the batch"""
-        total_size = 0
-        for request in self._events:
-            total_size += len(str(request.to_dict()))
-        return total_size
-
-    def get_events(self) -> List[EventIngestionRequest]:
-        """Get a copy of all events in the batch"""
-        return self._events.copy()
+        """Estimate total payload size (bytes)."""
+        return sum(len(str(req.to_dict())) for req in self._events)
 
     def get_stats(self) -> BatchStats:
-        """Get statistics about the current batch"""
+        """Return current batch statistics."""
         processing_time = 0
         if self._start_time:
             processing_time = int((time.time() - self._start_time) * 1000)
-        
         return BatchStats(
             total_events=len(self._events),
             total_size_bytes=self.get_total_size(),
-            processing_time_ms=processing_time
+            processing_time_ms=processing_time,
         )
 
     async def send(self) -> APIResponse:
-        """Send all events in the batch"""
+        """Send the batch."""
         if self.is_empty():
-            return APIResponse.success_response(
-                {"message": "No events to send", "total_events": 0}
-            )
-        
+            return APIResponse.success_response({"message": "No events to send", "total_events": 0})
+
         self._start_time = time.time()
-        
+
         try:
-            # Create batch request
             batch_request = BatchEventIngestionRequest(events=self._events)
-            
-            # Send via client
+            # TODO: refactor to use public client.send_batch(batch_request)
             response = await self.client._send_batch_request(batch_request)
-            
-            # Update stats
+
             stats = self.get_stats()
             stats.successful_events = len(self._events)
-            
-            # Clear the batch after successful send
+
+            response.data = response.data or {}
+            response.data.update({"batch_stats": stats.__dict__})
+
             self.clear()
-            
             return response
-            
+
         except Exception as e:
-            # Update stats with failure
             stats = self.get_stats()
             stats.failed_events = len(self._events)
-            
-            raise BatchError(f"Failed to send batch: {str(e)}") from e
+            raise BatchError(f"Failed to send batch: {e}") from e
 
     async def send_and_clear(self) -> APIResponse:
-        """Send all events and clear the batch regardless of success/failure"""
+        """Send and always clear."""
         try:
             return await self.send()
         finally:
             self.clear()
 
-    def split_batch(self, max_size: Optional[int] = None) -> List['BatchManager']:
-        """Split the current batch into smaller batches"""
-        if max_size is None:
-            max_size = self._max_batch_size // 2
-        
-        if max_size <= 0:
-            raise ValidationError("Max size must be greater than 0")
-        
+    def split_batch(self, max_size: Optional[int] = None) -> List["BatchManager"]:
+        """Split large batch into smaller batches."""
+        max_size = max_size or max(1, self._max_batch_size // 2)
         batches = []
-        current_events = self._events.copy()
-        
-        while current_events:
-            # Create new batch manager
+        current = self._events.copy()
+
+        while current:
             new_batch = BatchManager(self.client)
-            
-            # Add events up to max_size
-            events_to_add = current_events[:max_size]
-            for request in events_to_add:
-                new_batch._events.append(request)
-            
+            new_batch._events = current[:max_size]
             batches.append(new_batch)
-            current_events = current_events[max_size:]
-        
+            current = current[max_size:]
+
         return batches
 
     async def send_in_chunks(self, chunk_size: Optional[int] = None) -> List[APIResponse]:
-        """Send the batch in smaller chunks"""
-        if chunk_size is None:
-            chunk_size = self._max_batch_size // 2
-        
-        batches = self.split_batch(chunk_size)
-        responses = []
-        
-        for batch in batches:
+        """Send in smaller chunks if needed."""
+        chunk_size = chunk_size or max(1, self._max_batch_size // 2)
+        responses: List[APIResponse] = []
+
+        for batch in self.split_batch(chunk_size):
             try:
-                response = await batch.send()
-                responses.append(response)
+                resp = await batch.send()
+                responses.append(resp)
             except Exception as e:
-                # Continue with other batches even if one fails
-                error_response = APIResponse.error_response(str(e))
-                responses.append(error_response)
-        
-        # Clear the original batch
+                responses.append(APIResponse.error_response(str(e)))
+
         self.clear()
-        
         return responses
 
     def validate_batch(self) -> List[str]:
-        """Validate all events in the batch and return list of validation errors"""
+        """Validate all events."""
         errors = []
-        
         for i, request in enumerate(self._events):
             try:
-                # Basic validation
                 event = request.event
                 if not event.event_id:
                     errors.append(f"Event {i}: Missing event_id")
                 if not event.source_component:
                     errors.append(f"Event {i}: Missing source_component")
-                if not event.project_id:
-                    errors.append(f"Event {i}: Missing project_id")
-                
-                # Size validation
+                if not event.application_id:
+                    errors.append(f"Event {i}: Missing application_id")
+
                 event_size = len(str(request.to_dict()))
                 if self._max_payload_size and event_size > self._max_payload_size:
                     errors.append(
-                        f"Event {i}: Size ({event_size} bytes) exceeds maximum "
-                        f"({self._max_payload_size} bytes)"
+                        f"Event {i}: Size {event_size} > max {self._max_payload_size}"
                     )
-                    
+
             except Exception as e:
-                errors.append(f"Event {i}: Validation error - {str(e)}")
-        
+                errors.append(f"Event {i}: Validation error - {e}")
         return errors
 
-    def __len__(self) -> int:
-        """Return the number of events in the batch"""
+    def __len__(self):
         return len(self._events)
 
-    def __bool__(self) -> bool:
-        """Return True if the batch has events"""
-        return not self.is_empty()
-
     def __iter__(self):
-        """Iterate over events in the batch"""
         return iter(self._events)
 
-    def __getitem__(self, index: int) -> EventIngestionRequest:
-        """Get an event by index"""
-        return self._events[index]
-
+    def __getitem__(self, idx: int) -> EventIngestionRequest:
+        return self._events[idx]
 
 class AutoBatchManager:
     """
-    Lock-free automatic batch manager using asyncio.Queue instead of locks
-    Keeps the same API but removes all asyncio.Lock usage
+    Dual-mode AutoBatchManager:
+    - Async-safe for use inside event loops
+    - Thread-safe background processing for sync spans
     """
-    
-    def __init__(
-        self, 
-        client: 'TelemetryClient',
-        auto_send_timeout: Optional[float] = None
-    ):
+
+    def __init__(self, client: "TelemetryClient", auto_send_timeout: Optional[float] = None):
         self.client = client
         self._auto_send_timeout = auto_send_timeout or client.config.batch_timeout
         self._last_send_time = time.time()
-        
-        # Use asyncio.Queue instead of locks - this is the key change!
-        self._event_queue = asyncio.Queue(maxsize=1000)  # Bounded queue
-        self._batch = BatchManager(client)
-        self._processing = False  # Simple flag to prevent concurrent processing
-        
-        # Track timing for auto-flush
-        self._last_flush_check = time.time()
-        self._flush_check_interval = 0.1  # Check for flush every 100ms
 
-    async def add_event(
-        self, 
-        event: TelemetryEvent, 
-        details: Optional[Dict[str, Any]] = None
-    ) -> Optional[APIResponse]:
-        """Add event using queue instead of locks"""
+        # Internal queues
+        self._event_queue = asyncio.Queue(maxsize=1000)
+        self._batch = BatchManager(client)
+        self._processing = False
+        self._shutdown = False
+        self._last_flush_check = time.time()
+        self._flush_check_interval = 0.1
+
+        # Background event loop (for threaded usage)
+        self._background_loop: Optional[asyncio.AbstractEventLoop] = None
+        self._background_thread: Optional[threading.Thread] = None
+        self._start_background_loop()
+
+    # --- Background loop setup -------------------------------------------------
+    def _start_background_loop(self):
+        """Starts a persistent background asyncio loop for safe cross-thread calls."""
+
+
+        def run_loop():
+            self._background_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._background_loop)
+            self._background_loop.run_until_complete(self._background_task())
+
+        self._background_thread = threading.Thread(target=run_loop, daemon=True)
+        self._background_thread.start()
+
+    async def _background_task(self):
+        """Continuously process and flush queued events."""
+        while not self._shutdown:
+            try:
+                await self._process_events()
+                await asyncio.sleep(self._flush_check_interval)
+            except Exception as e:
+                if hasattr(self.client, "_logger"):
+                    self.client._logger.warning(f"[AutoBatchManager] Background loop error: {e}")
+                await asyncio.sleep(0.2)
+
+    # --- Event handling --------------------------------------------------------
+    async def add_event(self, event: TelemetryEvent, details: Optional[Dict[str, Any]] = None) -> Optional[APIResponse]:
+        """Add event asynchronously without blocking."""
         try:
-            # Add to queue without blocking
-            event_data = (event, details or {})
-            self._event_queue.put_nowait(event_data)
+            print(f"[AutoBatch] Adding event → {event.event_type} / {event.event_id}")
+            self._event_queue.put_nowait((event, details or {}))
+            print(f"[AutoBatch] Queue size after add: {self._event_queue.qsize()}")
             
-            # Process events if not already processing
             if not self._processing:
                 return await self._process_events()
-            
             return None
-            
         except asyncio.QueueFull:
-            # If queue is full, drop the event rather than block
-            self.client._logger.warning("AutoBatch queue full, dropping event to prevent blocking")
+            print("[AutoBatch] Queue full; dropping event")
+            self.client._logger.warning("AutoBatch queue full; dropping event.")
             return None
         except Exception as e:
-            self.client._logger.error(f"AutoBatchManager add_event error: {e}")
+            print(f"[AutoBatch] Error adding event: {e}")
+            self.client._logger.error(f"AutoBatch add_event error: {e}")
             return None
 
+
     async def _process_events(self) -> Optional[APIResponse]:
-        """Process events from queue without locks"""
+        """Drain events from queue and send in batches."""
         if self._processing:
             return None
-            
+
         self._processing = True
         response = None
-        
+
         try:
-            # Process events from queue in batches
-            events_processed = 0
-            current_time = time.time()
-            
-            # Process up to batch_size events or until queue is empty
-            while events_processed < self.client.config.batch_size and not self._event_queue.empty():
+            processed = 0
+            now = time.time()
+            print(f"[AutoBatch] Processing queue (initial size: {self._event_queue.qsize()})")
+
+            while processed < self.client.config.batch_size and not self._event_queue.empty():
                 try:
-                    # Get event without blocking
                     event, details = self._event_queue.get_nowait()
+                    print(f"[AutoBatch] → Dequeued event {event.event_id}")
                     self._batch.add_event(event, details)
-                    events_processed += 1
+                    processed += 1
                 except asyncio.QueueEmpty:
+                    print("[AutoBatch] Queue empty mid-process")
                     break
                 except Exception as e:
-                    self.client._logger.warning(f"Error processing queued event: {e}")
-                    continue
-            
-            # Check if we should send batch
+                    print(f"[AutoBatch] Error processing event: {e}")
+                    self.client._logger.warning(f"Queue event error: {e}")
+
+            print(f"[AutoBatch] Batch size after processing: {self._batch.size()}")
+
             should_send = (
-                self._batch.is_full() or 
-                (current_time - self._last_send_time) >= self._auto_send_timeout or
-                (events_processed > 0 and self._batch.size() >= self.client.config.batch_size // 2)
+                self._batch.is_full()
+                or (now - self._last_send_time) >= self._auto_send_timeout
+                or (processed > 0 and self._batch.size() >= self.client.config.batch_size // 2)
             )
-            
+
             if should_send and not self._batch.is_empty():
                 try:
+                    print(f"[AutoBatch] Sending batch of {self._batch.size()} events...")
                     response = await self._batch.send()
-                    self._last_send_time = current_time
+                    print(f"[AutoBatch] ✅ Batch send complete.")
+                    self._last_send_time = now
                 except Exception as e:
-                    # Don't let batch errors break the application
+                    print(f"[AutoBatch] ❌ Batch send failed: {e}")
                     self.client._logger.warning(f"Batch send failed: {e}")
                     self._batch.clear()
-                    self._last_send_time = current_time
-                    
+                    self._last_send_time = now
+
         finally:
+            await asyncio.sleep(0.01)
             self._processing = False
-            
+            print(f"[AutoBatch] Processing finished. Queue size: {self._event_queue.qsize()} | Batch size: {self._batch.size()}")
+
         return response
 
     async def flush(self) -> Optional[APIResponse]:
-        """Flush remaining events without locks"""
-        if self._processing:
-            # If already processing, just wait a bit and return
-            await asyncio.sleep(0.01)
-            return None
-        
-        # Process any remaining queued events first
+        """Force flush all remaining events and batches."""
+        print(f"[AutoBatch] 🚀 Full flush start. Queue={self._event_queue.qsize()} Batch={self._batch.size()}")
+        responses = []
+
+        # Drain the queue completely
+        while not self._event_queue.empty() or not self._batch.is_empty():
+            await self._process_events()
+
+            # If batch has events after draining — send it
+            if not self._batch.is_empty():
+                try:
+                    print(f"[AutoBatch] Flushing batch ({self._batch.size()} events)...")
+                    resp = await self._batch.send()
+                    self._last_send_time = time.time()
+                    responses.append(resp)
+                    print("[AutoBatch] ✅ Batch flushed.")
+                except Exception as e:
+                    print(f"[AutoBatch] ❌ Flush failed: {e}")
+                    self.client._logger.warning(f"Flush failed: {e}")
+                    self._batch.clear()
+
+            # Give control back to event loop briefly
+            await asyncio.sleep(0.05)
+
+            # Stop if queue empty and batch empty
+            if self._event_queue.empty() and self._batch.is_empty():
+                break
+
+        print(f"[AutoBatch] 🧹 Flush complete. Remaining Queue={self._event_queue.qsize()} Batch={self._batch.size()}")
+        return responses[-1] if responses else None
+
+
+
+    async def _flush_internal(self) -> Optional[APIResponse]:
+        """Internal flush implementation that always runs inside an event loop."""
         await self._process_events()
-        
-        # Then flush the batch
         if not self._batch.is_empty():
             try:
-                response = await self._batch.send()
+                resp = await self._batch.send()
                 self._last_send_time = time.time()
-                return response
+                return resp
             except Exception as e:
                 self.client._logger.warning(f"Flush failed: {e}")
                 self._batch.clear()
-                return None
-        
         return None
 
+    # --- Lifecycle -------------------------------------------------------------
+    def stop(self):
+        """Signal the background thread to stop."""
+        self._shutdown = True
+        if self._background_loop:
+            try:
+                self._background_loop.call_soon_threadsafe(self._background_loop.stop)
+            except Exception:
+                pass
+        if self._background_thread and self._background_thread.is_alive():
+            self._background_thread.join(timeout=2.0)
+
     def get_pending_count(self) -> int:
-        """Get the number of pending events"""
         return self._event_queue.qsize() + self._batch.size()
 
     def get_stats(self) -> BatchStats:
-        """Get current batch statistics"""
         return self._batch.get_stats()

@@ -1,11 +1,12 @@
 """
-Event builder for creating and configuring telemetry events
+Event builder for creating and configuring telemetry events.
 """
 
 import time
 import uuid
+import json
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional, TYPE_CHECKING, Self
 
 from .models import TelemetryEvent, EventType, EventStatus, EventIngestionRequest
 from ..utils.exceptions import ValidationError
@@ -15,135 +16,99 @@ if TYPE_CHECKING:
 
 
 class EventBuilder:
-    """Builder pattern for creating telemetry events with method chaining"""
-    
+    """Builder for constructing telemetry events with fluent method chaining."""
+
     def __init__(self, client: 'TelemetryClient', event_type: EventType, source_component: str):
         self.client = client
         self._start_time: Optional[float] = None
         self._details: Dict[str, Any] = {}
-        
-        # Initialize event with basic required fields
+
         self._event = TelemetryEvent(
             event_id=f"evt_{uuid.uuid4().hex[:12]}",
             event_type=event_type,
             source_component=source_component,
             session_id=client.config.session_id,
             tenant_id=client.config.tenant_id,
-            # project_id=client.config.project_id,
-            # user_id=client.config.user_id,
             application_id=client.config.application_id,
             status=EventStatus.SUCCESS,
-            timestamp=None,  # Will be set when event is sent or built
+            timestamp=None,
             metadata={}
         )
 
-    def set_event_id(self, event_id: str) -> 'EventBuilder':
-        """Set custom event ID"""
+    # ---------- Core Setters ---------- #
+
+    def set_event_id(self, event_id: str) -> Self:
         if not event_id:
             raise ValidationError("Event ID cannot be empty")
         self._event.event_id = event_id
         return self
-    
-    def set_provider(self, provider: str) -> 'ModelCallEventBuilder':
-        """Set the model provider (e.g., 'openai', 'anthropic')"""
-        self._event.provider = provider  # ✅ NEW: Set on event
-        self.set_details(provider=provider)  # Keep for backwards compat
+
+    def set_provider(self, provider: str) -> Self:
+        """Set the model provider (e.g., 'openai', 'anthropic')."""
+        if provider:
+            self._event.provider = provider
+            self.set_details(provider=provider)
         return self
 
-    def set_model(self, model: str) -> 'ModelCallEventBuilder':
-        """Set the model name (e.g., 'gpt-4', 'claude-3')"""
-        self._event.model_name = model  # ✅ NEW: Set on event
-        self.set_details(model_name=model)
+    def set_model(self, model: str) -> Self:
+        """Set the model name (e.g., 'gpt-4', 'claude-3')."""
+        if model:
+            self._event.model_name = model
+            self.set_details(model_name=model)
         return self
 
-    def set_finish_reason(self, reason: str) -> 'ModelCallEventBuilder':
-        """Set the finish reason"""
-        self.set_details(finish_reason=reason)
-        return self
-    
-    def set_input(self, text: str) -> 'EventBuilder':
-        """Set input text for the event"""
+    def set_finish_reason(self, reason: str) -> Self:
+        """Set LLM finish reason."""
+        return self.set_details(finish_reason=reason)
+
+    def set_input(self, text: str) -> Self:
+        """Set input text for the event."""
         if text is not None:
-            self._event.input_text = str(text)[:10000]  # Limit input size
+            self._event.input_text = str(text)[:10000]
         return self
 
-    def set_output(self, text: str) -> 'EventBuilder':
-        """Set output text for the event"""
+    def set_output(self, text: str) -> Self:
+        """Set output text for the event."""
         if text is not None:
-            self._event.output_text = str(text)[:10000]  # Limit output size
+            self._event.output_text = str(text)[:10000]
         return self
 
-    def set_tokens(self, count: int) -> 'EventBuilder':
-        """Set token count for the event"""
+    def set_tokens(self, count: int) -> Self:
+        """Set total token count."""
         if count is not None and count >= 0:
             self._event.token_count = count
         return self
 
-    def set_cost(self, cost: float) -> 'EventBuilder':
-        """Set cost for the event"""
+    def set_cost(self, cost: float) -> Self:
+        """Set cost in USD."""
         if cost is not None and cost >= 0:
             self._event.cost = cost
         return self
-    
 
-      # ✅ NEW METHOD 1: set_usage_details()
-    def set_usage_details(self, usage: Dict[str, int]) -> 'EventBuilder':
-        """
-        Set token usage details (prompt_tokens, completion_tokens, total_tokens).
-        This is a convenience method that:
-        1. Sets the token_count from total_tokens
-        2. Stores full usage details in metadata
-        
-        Args:
-            usage: Dict with keys like 'prompt_tokens', 'completion_tokens', 'total_tokens'
-        
-        Example:
-            builder.set_usage_details({
-                "prompt_tokens": 50,
-                "completion_tokens": 100,
-                "total_tokens": 150
-            })
-        """
-        if usage is None:
+    # ---------- Convenience Methods ---------- #
+
+    def set_usage_details(self, usage: Dict[str, int]) -> Self:
+        """Attach token usage details (prompt_tokens, completion_tokens, total_tokens)."""
+        if not usage:
             return self
-        
-        # Set token_count from total_tokens
-        total_tokens = usage.get('total_tokens')
-        if total_tokens is not None:
+
+        total_tokens = usage.get("total_tokens") or (
+            usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0)
+        )
+        if total_tokens:
             self.set_tokens(total_tokens)
-        
-        # Store full usage details in metadata for detailed analysis
-        self.set_metadata('usage_details', usage)
-        
-        return self
-    
-    # ✅ NEW METHOD 2: set_model_parameters()
-    def set_model_parameters(self, params: Dict[str, Any]) -> 'EventBuilder':
-        """
-        Set model parameters (temperature, max_tokens, top_p, etc.).
-        Stores parameters in metadata for analysis.
-        
-        Args:
-            params: Dict with model configuration parameters
-        
-        Example:
-            builder.set_model_parameters({
-                "temperature": 0.7,
-                "max_tokens": 500,
-                "top_p": 1.0
-            })
-        """
-        if params is None:
-            return self
-        
-        # Store model parameters in metadata
-        self.set_metadata('model_parameters', params)
-        
+
+        self.set_metadata("usage_details", usage)
         return self
 
+    def set_model_parameters(self, params: Dict[str, Any]) -> Self:
+        """Attach model configuration parameters (temperature, top_p, etc.)."""
+        if params:
+            self.set_metadata("model_parameters", params)
+        return self
 
-    def set_status(self, status: EventStatus) -> 'EventBuilder':
-        """Set event status"""
+    def set_status(self, status: EventStatus | str) -> Self:
+        """Set status of the event."""
         if isinstance(status, EventStatus):
             self._event.status = status
         elif isinstance(status, str):
@@ -153,45 +118,40 @@ class EventBuilder:
                 raise ValidationError(f"Invalid status: {status}")
         return self
 
-    def set_metadata(self, key: str, value: Any) -> 'EventBuilder':
-        """Add metadata key-value pair"""
+    def set_metadata(self, key: str, value: Any) -> Self:
+        """Attach metadata key-value pair."""
         if not key:
             raise ValidationError("Metadata key cannot be empty")
-        
         if self._event.metadata is None:
             self._event.metadata = {}
-        
-        # Serialize complex objects to string representation
-        if isinstance(value, (dict, list, tuple)):
-            import json
-            try:
-                self._event.metadata[key] = json.dumps(value)
-            except (TypeError, ValueError):
-                self._event.metadata[key] = str(value)
-        else:
+        try:
+            json.dumps(value, default=str)
             self._event.metadata[key] = value
-        
+        except Exception:
+            self._event.metadata[key] = str(value)
         return self
 
-    def add_metadata(self, metadata: Dict[str, Any]) -> 'EventBuilder':
-        """Add multiple metadata entries"""
+    def add_metadata(self, metadata: Dict[str, Any]) -> Self:
+        """Attach multiple metadata entries."""
         if metadata:
-            for key, value in metadata.items():
-                self.set_metadata(key, value)
+            for key, val in metadata.items():
+                self.set_metadata(key, val)
         return self
 
-    def set_details(self, **kwargs) -> 'EventBuilder':
-        """Set details that will be sent along with the event"""
+    def set_details(self, **kwargs) -> Self:
+        """Set additional details to include in ingestion payload."""
         self._details.update(kwargs)
         return self
 
+    # ---------- Trace Info ---------- #
+
     def set_trace_info(
-        self, 
-        trace_id: Optional[str] = None, 
-        span_id: Optional[str] = None, 
-        parent_span_id: Optional[str] = None
-    ) -> 'EventBuilder':
-        """Set trace information for distributed tracing"""
+        self,
+        trace_id: Optional[str] = None,
+        span_id: Optional[str] = None,
+        parent_span_id: Optional[str] = None,
+    ) -> Self:
+        """Set distributed tracing identifiers."""
         if trace_id:
             self._event.trace_id = trace_id
         if span_id:
@@ -200,179 +160,130 @@ class EventBuilder:
             self._event.parent_span_id = parent_span_id
         return self
 
-    def set_parent_event(self, parent_event_id: str) -> 'EventBuilder':
-        """Set parent event ID for hierarchical events"""
+    def set_parent_event(self, parent_event_id: str) -> Self:
+        """Set parent event ID for hierarchical event trees."""
         if parent_event_id:
             self._event.parent_event_id = parent_event_id
         return self
 
-    def start_timing(self) -> 'EventBuilder':
-        """Start timing the event"""
+    # ---------- Timing ---------- #
+
+    def start_timing(self) -> Self:
+        """Start timing latency measurement."""
         self._start_time = time.time()
         return self
 
-    def end_timing(self) -> 'EventBuilder':
-        """End timing and calculate latency"""
+    def end_timing(self) -> Self:
+        """Stop timing and record latency."""
         if self._start_time is not None:
-            latency_ms = int((time.time() - self._start_time) * 1000)
-            self._event.latency_ms = latency_ms
+            self._event.latency_ms = int((time.time() - self._start_time) * 1000)
         return self
 
-    def set_latency(self, latency_ms: int) -> 'EventBuilder':
-        """Manually set latency in milliseconds"""
+    def set_latency(self, latency_ms: int) -> Self:
+        """Manually set latency (ms)."""
         if latency_ms is not None and latency_ms >= 0:
             self._event.latency_ms = latency_ms
         return self
 
-    def set_error(self, error: Exception) -> 'EventBuilder':
-        """Set event as error with exception details"""
+    # ---------- Error / Validation ---------- #
+
+    def set_error(self, error: Exception) -> Self:
+        """Mark event as errored and record exception metadata."""
         self._event.set_error(error)
         return self
 
-    def set_timestamp(self, timestamp: datetime) -> 'EventBuilder':
-        """Set custom timestamp for the event"""
+    def set_timestamp(self, timestamp: datetime) -> Self:
+        """Set event timestamp."""
         if timestamp:
-            self._event.timestamp = timestamp
+            self._event.timestamp = timestamp.replace(tzinfo=timezone.utc)
         return self
 
+    def _validate_event(self) -> None:
+        """Validate required fields and payload size before send."""
+        required = ["event_id", "event_type", "source_component", "session_id"]
+        for field in required:
+            if not getattr(self._event, field):
+                raise ValidationError(f"Missing required field '{field}'")
+
+        # Check payload size
+        payload = str(self._event.to_dict())
+        if len(payload) > self.client.config.max_payload_size:
+            raise ValidationError(
+                f"Event payload ({len(payload)} bytes) exceeds limit "
+                f"({self.client.config.max_payload_size} bytes)"
+            )
+
+    # ---------- Build / Send ---------- #
+
     def build(self) -> TelemetryEvent:
-        """Build the event without sending it"""
-        # Set timestamp if not already set
-        if self._event.timestamp is None:
-            self._event.timestamp = datetime.now(timezone.utc)
-        
-        # Validate the event
+        """Finalize and return TelemetryEvent without sending."""
+        if not self._event.timestamp:
+            self._event.timestamp = datetime.utcnow().replace(tzinfo=timezone.utc)
         self._validate_event()
-        
         return self._event
 
     async def send(self) -> str:
-        """Build and send the event, returning the event ID"""
+        """Build and send telemetry event."""
         event = self.build()
-        
-        # Create ingestion request
         request = EventIngestionRequest(event=event, details=self._details)
-        
-        # Send via client
-        await self.client._send_event_request(request)
-        
+        await self.client.send_event(event, self._details)
         return event.event_id
 
-    def _validate_event(self) -> None:
-        """Validate the event before building/sending"""
-        # Check required fields
-        required_fields = [
-            'event_id', 'event_type', 'source_component', 
-            'session_id'
-        ]
-        
-        for field in required_fields:
-            if not getattr(self._event, field):
-                raise ValidationError(f"Required field '{field}' is missing")
-        
-        # Check payload size if configured
-        if self.client.config.max_payload_size:
-            payload_size = len(str(self._event.to_dict()))
-            if payload_size > self.client.config.max_payload_size:
-                raise ValidationError(
-                    f"Event payload size ({payload_size} bytes) exceeds maximum "
-                    f"allowed size ({self.client.config.max_payload_size} bytes)"
-                )
+    # ---------- Context Manager Support ---------- #
 
-    def __enter__(self) -> 'EventBuilder':
-        """Support for context manager syntax"""
+    def __enter__(self) -> Self:
         self.start_timing()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """End timing on context exit"""
         self.end_timing()
-        
-        if exc_type is not None:
-            # Set error information if exception occurred
+        if exc_type:
             self.set_status(EventStatus.ERROR)
             if exc_val:
                 self.set_error(exc_val)
 
 
+# ---------- Specialized Builders ---------- #
+
 class ModelCallEventBuilder(EventBuilder):
-    """Specialized builder for model call events"""
-    
+    """Builder for model/LLM call events."""
     def __init__(self, client: 'TelemetryClient', source_component: str = "model_call"):
         super().__init__(client, EventType.MODEL_CALL, source_component)
 
-    def set_provider(self, provider: str) -> 'ModelCallEventBuilder':
-        """Set the model provider (e.g., 'openai', 'anthropic')"""
-        return self.set_details(provider=provider)
-
-    def set_model(self, model: str) -> 'ModelCallEventBuilder':
-        """Set the model name (e.g., 'gpt-4', 'claude-3')"""
-        return self.set_details(model_name=model)
-
-    def set_temperature(self, temperature: float) -> 'ModelCallEventBuilder':
-        """Set the model temperature"""
+    def set_temperature(self, temperature: float) -> Self:
         return self.set_details(temperature=temperature)
-
-    def set_finish_reason(self, reason: str) -> 'ModelCallEventBuilder':
-        """Set the finish reason"""
-        return self.set_details(finish_reason=reason)
 
 
 class ToolExecutionEventBuilder(EventBuilder):
-    """Specialized builder for tool execution events"""
-    
+    """Builder for tool or API call telemetry events."""
     def __init__(self, client: 'TelemetryClient', tool_name: str, source_component: str = None):
         super().__init__(client, EventType.TOOL_EXECUTION, source_component or tool_name)
         self.set_details(tool_name=tool_name)
 
-    def set_action(self, action: str) -> 'ToolExecutionEventBuilder':
-        """Set the tool action"""
+    def set_action(self, action: str) -> Self:
         return self.set_details(action=action)
 
-    def set_endpoint(self, endpoint: str) -> 'ToolExecutionEventBuilder':
-        """Set the API endpoint"""
+    def set_endpoint(self, endpoint: str) -> Self:
         return self.set_details(endpoint=endpoint)
 
-    def set_http_method(self, method: str) -> 'ToolExecutionEventBuilder':
-        """Set the HTTP method"""
+    def set_http_method(self, method: str) -> Self:
         return self.set_details(http_method=method)
 
-    def set_http_status(self, status_code: int) -> 'ToolExecutionEventBuilder':
-        """Set the HTTP status code"""
+    def set_http_status(self, status_code: int) -> Self:
         return self.set_details(http_status_code=status_code)
-
-    def set_request_payload(self, payload: Dict[str, Any]) -> 'ToolExecutionEventBuilder':
-        """Set the request payload"""
-        return self.set_details(request_payload=payload)
-
-    def set_response_payload(self, payload: Dict[str, Any]) -> 'ToolExecutionEventBuilder':
-        """Set the response payload"""
-        return self.set_details(response_payload=payload)
 
 
 class AgentActionEventBuilder(EventBuilder):
-    """Specialized builder for agent action events"""
-    
+    """Builder for agent reasoning/action events."""
     def __init__(self, client: 'TelemetryClient', action_type: str, source_component: str = "agent"):
         super().__init__(client, EventType.AGENT_ACTION, source_component)
         self.set_details(action_type=action_type)
 
-    def set_agent_name(self, name: str) -> 'AgentActionEventBuilder':
-        """Set the agent name"""
+    def set_agent_name(self, name: str) -> Self:
         return self.set_details(agent_name=name)
 
-    def set_thought_process(self, thought: str) -> 'AgentActionEventBuilder':
-        """Set the agent's thought process"""
+    def set_thought_process(self, thought: str) -> Self:
         return self.set_details(thought_process=thought)
 
-    def set_selected_tool(self, tool: str) -> 'AgentActionEventBuilder':
-        """Set the selected tool"""
+    def set_selected_tool(self, tool: str) -> Self:
         return self.set_details(selected_tool=tool)
-
-    def set_target_model(self, model: str) -> 'AgentActionEventBuilder':
-        """Set the target model"""
-        return self.set_details(target_model=model)
-
-    def set_policy(self, policy: Dict[str, Any]) -> 'AgentActionEventBuilder':
-        """Set the agent policy"""
-        return self.set_details(policy=policy)
