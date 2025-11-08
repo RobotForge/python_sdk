@@ -47,7 +47,7 @@ class TelemetryClient:
         self,
         api_key: Optional[str] = None,
         #endpoint: Optional[str] = None,
-        #project_id: Optional[str] = None,
+        user_id: Optional[str] = None,
         config: Optional[TelemetryConfig] = None,
         **kwargs
     ):
@@ -58,7 +58,7 @@ class TelemetryClient:
             config_params = {
                 'api_key': api_key,
                 'endpoint': 'https://cloud.robotforge.com.ng', 
-                #'project_id': project_id,
+                'user_id': user_id,
                 **kwargs
             }
             # Remove None values

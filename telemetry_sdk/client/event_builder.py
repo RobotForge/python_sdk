@@ -28,6 +28,7 @@ class EventBuilder:
             event_type=event_type,
             source_component=source_component,
             session_id=client.config.session_id,
+            user_id=client.config.user_id,
             tenant_id=client.config.tenant_id,
             application_id=client.config.application_id,
             status=EventStatus.SUCCESS,
@@ -200,7 +201,7 @@ class EventBuilder:
 
     def _validate_event(self) -> None:
         """Validate required fields and payload size before send."""
-        required = ["event_id", "event_type", "source_component", "session_id"]
+        required = ["event_id", "event_type", "source_component", "session_id", "user_id"]
         for field in required:
             if not getattr(self._event, field):
                 raise ValidationError(f"Missing required field '{field}'")
