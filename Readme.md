@@ -59,9 +59,11 @@ load_dotenv()
 
 API_KEY = os.getenv("ROBOTFORGE_API_KEY")
 APPLICATION_ID = "example_app"
+USER_ID="User ID from the authentication of your app"
 
 client = telemetry_sdk.quick_setup(
     api_key=API_KEY,
+    user_id=USER_iD,
     application_id=APPLICATION_ID,
     set_as_default=True
 )
@@ -187,6 +189,7 @@ from telemetry_sdk.client import TelemetryClient
 client = TelemetryClient(
     api_key="your-api-key",
     application_id="my_app",
+    user_id = "From your app Auth
     session_id=None,      # auto-generated
     batch_size=10,
     flush_interval=5.0,
