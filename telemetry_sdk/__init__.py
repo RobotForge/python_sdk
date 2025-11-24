@@ -20,7 +20,8 @@ from .client import (
     EventType,
     EventStatus,
     TelemetryConfig,
-    APIResponse
+    APIResponse,
+    SpanExporter
 )
 
 # # Auto-instrumentation imports

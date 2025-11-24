@@ -21,7 +21,7 @@ from .models import (
     APIResponse
 )
 
-# ✅ NEW IMPORTS: Specialized span classes
+
 from .observation_span import (
     ObservationSpan,
     ModelCallSpan,
@@ -29,7 +29,9 @@ from .observation_span import (
     AgentActionSpan
 )
 
-# ✅ NEW IMPORT: LLM pricing database
+from .span_exporter import SpanExporter, create_span_exporter
+
+
 from .pricing import LLMPricing
 
 
@@ -72,4 +74,8 @@ __all__ = [
     "EventIngestionRequest",
     "BatchEventIngestionRequest",
     "APIResponse",
+
+    # Otel Span exporter
+    "SpanExporter",
+    "create_span_exporter",
 ]
